@@ -101,10 +101,10 @@ crossEntError = unlines ["Cross Ent: input %s does not match target %s with %s c
 linearChk :: Dim -> Dim -> Tensor -> ETensor
 linearChk inSize outSize tensor
    | notScalar && (last size == inSize)  = Right $ fromDim (init size ++ [outSize])
-   | otherwise                           = Left $ msg (show tensor) inSize
+   | otherwise                           = Left $ msg (fmtDim size) inSize
    where notScalar = not $ isScalar tensor
          size = dim tensor
-         msg = printf "Linear Layer: last dimension of %s does not match input size %d"
+         msg = printf "Linear Layer: last dimension of %s does not match input size %s"
 
 
 {- Applies the linear layer in the flow of the network -}
