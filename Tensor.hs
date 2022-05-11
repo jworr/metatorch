@@ -2,14 +2,13 @@ module Tensor
 (
    Tensor(..),
    ETensor,
-   Dim,
    dim,
    fromDim,
    isScalar
 )
 where
 
-type Dim = String
+import Dim (Dim)
 
 data Tensor = Scalar
             | Vector Dim

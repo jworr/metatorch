@@ -17,7 +17,8 @@ import Data.List
 import Data.Either (isRight)
 import Text.Printf (printf)
 
-import Tensor (Tensor(..), ETensor, Dim, dim, fromDim, isScalar)
+import Dim (Dim, lit)
+import Tensor (Tensor, ETensor, dim, fromDim, isScalar)
 
 --TODOs basics: product, sum, squeeze, dim sum, reshape
 --TODOs 2D Conv, Max/Avg pool, concat, MSE, BCE
@@ -39,17 +40,17 @@ data Layer = Linear Dim Dim
 
 instance Show Layer where
 
-   show (Linear d1 d2)    = printf "Linear %s %s" d1 d2
-   show (RNN name d bi)   = printf "%s%s %s" (if bi then "bi-" else "") name d
+   show (Linear d1 d2)    = printf "Linear %s %s" (show d1) (show d2)
+   show (RNN name d bi)   = printf "%s%s %s" (if bi then "bi-" else "") name (show d)
    
-   show (RNNLast name d bi ba) = printf "Last %s%s %s%s" biMsg name d baMsg
+   show (RNNLast name d bi ba) = printf "Last %s%s %s%s" biMsg name (show d) baMsg
       where biMsg = if bi then "bi-" else ""
             baMsg = if ba then " batch first" else ""
 
    show (Activation name) = name
-   show (CELoss d)        = printf "Cross Entropy %s" d
+   show (CELoss d)        = printf "Cross Entropy %s" (show d)
    show (Broken msg)      = printf "Error: %s" msg
-   show (Permute ord)     = printf "Permute: %s" (intercalate ","$ map show ord)
+   show (Permute ord)     = printf "Permute: %s" (intercalate "," $ map show ord)
    show (Squeeze d)       = printf "Squeeze: %d" d
 
 --principle type, an operation in the flow of network
@@ -78,7 +79,7 @@ crossEntChk numClasses target input
    | inDim >= 3 && tarDim >= 2 && sameFirst && sameEnd && (isNc $ tail inputDims) = out
 
    --error
-   | otherwise = Left $ msg (fmtDim inputDims) (fmtDim targetDims) numClasses
+   | otherwise = Left $ msg (fmtDim inputDims) (fmtDim targetDims) (show numClasses)
 
    where inputDims  = dim input
          targetDims = dim target
@@ -101,7 +102,7 @@ crossEntError = unlines ["Cross Ent: input %s does not match target %s with %s c
 linearChk :: Dim -> Dim -> Tensor -> ETensor
 linearChk inSize outSize tensor
    | notScalar && (last size == inSize)  = Right $ fromDim (init size ++ [outSize])
-   | otherwise                           = Left $ msg (fmtDim size) inSize
+   | otherwise                           = Left $ msg (fmtDim size) (show inSize)
    where notScalar = not $ isScalar tensor
          size = dim tensor
          msg = printf "Linear Layer: last dimension of %s does not match input size %s"
@@ -129,7 +130,7 @@ squeezeChk sDim tensor
    
    where dims = dim tensor
          inRange = sDim < (length dims) && sDim >= 0
-         isOne = (dims !! sDim) == "1" --TODO fix hack!
+         isOne = (dims !! sDim) == lit 1
 
          --split at the index given
          (pre, post) = splitAt sDim dims
@@ -182,4 +183,4 @@ generate flow = printf "Final Output: %s\n\nLayers:\n%s" fmtOut fmtLayer
 
 {- Format the dimensions of the tensor -}
 fmtDim :: [Dim] -> String
-fmtDim = intercalate "x"
+fmtDim dims = intercalate "x" (map show dims)
