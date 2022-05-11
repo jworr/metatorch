@@ -8,7 +8,8 @@ module Layer (
    linear,
    act,
    permute,
-   squeeze
+   squeeze,
+   reshape
 )
 where
 
@@ -17,12 +18,9 @@ import Data.List
 import Data.Either (isRight)
 import Text.Printf (printf)
 
-import Dim (Dim, lit)
+import Dim (Dim, lit, multiplyAll)
 import Tensor (Tensor, ETensor, dim, fromDim, isScalar)
 
---TODOs basics: product, sum, squeeze, dim sum, reshape
---TODOs 2D Conv, Max/Avg pool, concat, MSE, BCE
---TODO "join" for two different flows
 
 data Layer = Linear Dim Dim
 
@@ -34,25 +32,30 @@ data Layer = Linear Dim Dim
 
            | Permute [Int] 
            | Squeeze Int
+           | Reshape [Dim]
            | Activation String
            | CELoss Dim
            | Broken String
 
 instance Show Layer where
 
-   show (Linear d1 d2)    = printf "Linear %s %s" (show d1) (show d2)
-   show (RNN name d bi)   = printf "%s%s %s" (if bi then "bi-" else "") name (show d)
+   show (Linear d1 d2)       = printf "Linear %s %s" (show d1) (show d2)
+   show (RNN name d True)    = printf "bi-%s %s" name (show d)
+   show (RNN name d False)   = printf "%s %s" name (show d)
    
-   show (RNNLast name d bi ba) = printf "Last %s%s %s%s" biMsg name (show d) baMsg
-      where biMsg = if bi then "bi-" else ""
-            baMsg = if ba then " batch first" else ""
+   show (RNNLast name d False False) = printf "Last-%s %s" name (show d)
+   show (RNNLast name d True False)  = printf "Last-bi-%s %s" name (show d)
+   show (RNNLast name d False True)  = printf "Last %s %s (batch first)" name (show d)
+   show (RNNLast name d True True)   = printf "Last-bi-%s %s (batch first)" name (show d)
 
    show (Activation name) = name
    show (CELoss d)        = printf "Cross Entropy %s" (show d)
    show (Broken msg)      = printf "Error: %s" msg
    show (Permute ord)     = printf "Permute: %s" (intercalate "," $ map show ord)
    show (Squeeze d)       = printf "Squeeze: %d" d
+   show (Reshape ds)      = printf "Reshape: %s" (fmtDim ds)
 
+--TODO change the logging to record output dimension as well
 --principle type, an operation in the flow of network
 type Flow = Writer [Layer] ETensor
 
@@ -138,7 +141,7 @@ squeezeChk sDim tensor
          --the dimension to drop will be the first of "post"
          newDims     = pre ++ (tail post)
 
-         msg = printf "Squeeze: cannot remove %d from %s" sDim (fmtDim dims)
+         msg = printf "Squeeze: cannot remove dimension %d from %s" sDim (fmtDim dims)
      
 
 {- Perumutes the dimensions of the tensor -}
@@ -160,6 +163,22 @@ permuteChk order tensor
          msg = printf "Permute: %s does not match input shape %s" ord (fmtDim dims)
          ord = intercalate "," $ map show order
          newDims = map (dims !!) order
+
+{- Reshapes the given tensor -}
+reshape :: [Dim] -> ETensor -> Flow
+reshape newShape tensor = log $ tensor >>= (reshapeChk newShape)
+   where log = record $ Reshape newShape
+
+{- Ensures that the same number of elements exist between the input
+and ouput tensors-}
+reshapeChk :: [Dim] -> Tensor -> ETensor
+reshapeChk newSize tensor
+   | matchSize = Right $ fromDim newSize
+   | otherwise = Left  $ printf reshapeMsg (fmtDim newSize) (fmtDim inDims)
+   where inDims    = dim tensor
+         matchSize = (multiplyAll newSize) == (multiplyAll inDims)
+
+reshapeMsg = "Reshape: product of input %s and product of output %s do not match"
 
 {- Records the errors -}
 record :: Layer -> ETensor -> Flow

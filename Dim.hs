@@ -3,17 +3,16 @@ module Dim
    Dim,
    lit,
    var,
-   multiply
+   multiply,
+   multiplyAll
 )
 where
 
 import Data.Char (isDigit)
 import Text.Printf (printf)
+import Data.List (foldr, sort)
 
---TODO the Eq instance should be manually implemented to make sure multiplication
---commutative
 data Dim = Dim Int [String]
-           deriving Eq
 
 instance Show Dim where
 
@@ -22,6 +21,10 @@ instance Show Dim where
    show (Dim num [v])  = printf "%d%s" num v
    show (Dim 1 vars)   = printf "%s" (unwords vars)
    show (Dim num vars) = printf "%d(%s)" num (unwords vars)
+
+instance Eq Dim where
+
+   (Dim l lds) == (Dim r rds) = (l == r) && (sort lds) == (sort rds)
 
 {- Makes a dimension from an Int -}
 lit :: Int -> Dim
@@ -35,3 +38,6 @@ var v = Dim 1 [v]
 multiply :: Dim -> Dim -> Dim
 multiply (Dim x vars) (Dim y others) = Dim (x * y) (vars ++ others)
 
+{- Multiply all the dimension together -}
+multiplyAll :: [Dim] -> Dim
+multiplyAll = foldr multiply (lit 1)

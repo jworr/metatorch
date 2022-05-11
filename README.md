@@ -14,3 +14,13 @@ More Pytorch layers and operations will be implemented in the near future.
 Ultimately the goal of the project is to create a code generator that produces Python classes based on a prototype.
 
 Look in `Example.hs` for example models. Compile the example with the following command: `ghc --make Example -outputdir=lib`. Run the example with the command `./Example`
+
+
+## TO-DOs
+
+* Convolutional Layers
+* Pooling Layers
+* More loss functions such as MSE
+* Multi-layer option for RNNs
+* `join` function to connect two separate network flows
+* PyTorch code generator

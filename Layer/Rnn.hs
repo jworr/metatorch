@@ -8,7 +8,10 @@ module Layer.Rnn
    gruBi,
    rnnLast,
    lstmLast,
-   gruLast
+   gruLast,
+   rnnBiLast,
+   lstmBiLast,
+   gruBiLast
 )
 where
 
@@ -33,6 +36,11 @@ rnnLast  = genLastRnn "RNN"
 lstmLast = genLastRnn "LSTM"
 gruLast  = genLastRnn "GRU"
 
+rnnBiLast  = genBiLastRnn "RNN"
+lstmBiLast = genBiLastRnn "LSTM"
+gruBiLast  = genBiLastRnn "GRU"
+
+
 {- Models a single directional RNN, outputs at each timestep -}
 genRnn :: String -> Dim -> ETensor -> Flow
 genRnn name hidden input = log $ input >>= (rnnChk name hidden)
@@ -52,7 +60,6 @@ rnnChk name hidden input
 rnnChkMsg = unlines ["%s Layer: input must be 2 (length, H)",
    "or (batch, length, h) or (length, batch, h)"]
 
---TODO add layers
 {- Models a single directional RNN, that outputs the last timesteps vector -}
 genLastRnn :: String -> Bool -> Dim -> ETensor -> Flow
 genLastRnn name batchFst hidden input = log $ 
@@ -78,4 +85,9 @@ genBiRnn name hidden input = log $ input >>= (rnnChk name bi)
    where log = record $ RNN name bi True
          bi = multiply (lit 2) hidden
 
---TODO bidirectional, first/last
+{- Models a Bi-Directional RNN that outputs two "last" vectors -}
+genBiLastRnn :: String -> Bool -> Dim -> ETensor -> Flow
+genBiLastRnn name batchFst hidden input = log $ 
+   input >>= (lastRnnChk name batchFst (lit 2) hidden) 
+
+   where log = record $ RNNLast name hidden True batchFst

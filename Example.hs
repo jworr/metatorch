@@ -1,7 +1,7 @@
 
 import Tensor (Tensor(..))
-import Layer (Flow, start, act, linear, crossEnt, generate, permute, squeeze)
-import Layer.Rnn (lstm, gruBi, lstmLast)
+import Layer (Flow, start, act, linear, crossEnt, generate, permute, reshape)
+import Layer.Rnn (lstm, gruBi, lstmBiLast)
 import Dim (lit, var, multiply)
 
 --define variables and constants
@@ -24,12 +24,13 @@ token = (start $ Matrix l k)
       >>= linear h _10
       >>= crossEnt _10 (Vector l)
 
---sequence summarization, one prediction per sequence, 4 classes
+--sequence summarization, bi-directional LSTM, last vectors used for prediction
+--one prediction per sequence, 2 classes
 summarize :: Flow
-summarize = (start $ Tensor n l n)
-          >>= lstmLast True h
-          >>= squeeze 0
-          >>= linear h _2
+summarize = (start $ Tensor n l k)
+          >>= lstmBiLast True h
+          >>= reshape [n, _2h]
+          >>= linear _2h _2
           >>= crossEnt _2 (Vector n)
 
 --batched per "word" classifier for 5 classes
