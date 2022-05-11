@@ -55,9 +55,8 @@ instance Show Layer where
    show (Squeeze d)       = printf "Squeeze: %d" d
    show (Reshape ds)      = printf "Reshape: %s" (fmtDim ds)
 
---TODO change the logging to record output dimension as well
 --principle type, an operation in the flow of network
-type Flow = Writer [Layer] ETensor
+type Flow = Writer [(Layer, [Dim])] ETensor
 
 
 {- Applies the Loss layer in the flow of the network -}
@@ -182,9 +181,9 @@ reshapeMsg = "Reshape: product of input %s and product of output %s do not match
 
 {- Records the errors -}
 record :: Layer -> ETensor -> Flow
-record layer (Right ten) = writer (Right ten, [layer])    --success
-record _ (Left "")       = writer (Left "", [])           --no op
-record _ (Left err)      = writer (Left "", [Broken err]) --record and clear error
+record layer (Right ten) = writer (Right ten, [(layer, dim ten)]) --success
+record _ (Left "")       = writer (Left "", [])                   --no op
+record _ (Left err)      = writer (Left "", [(Broken err, [])])   --record and clear error
 
 {- Initialize the network flow -}
 start :: Tensor -> Flow
@@ -192,13 +191,14 @@ start ten = writer (Right ten, [])
 
 {- Convert the flow of the network into a String to be printed -}
 generate :: Flow -> String
-generate flow = printf "Final Output: %s\n\nLayers:\n%s" fmtOut fmtLayer
+generate flow = printf "Final Output: %s\n\n%-30s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
 
-   where (output, layers) = runWriter flow
-         fmtLayer = unlines $ map show layers
-         fmtOut   = case output of
-                     Right tensor -> show tensor
-                     Left error   -> error
+   where (output, layers)    = runWriter flow
+         fmtLayers           = unlines $ map fmtPair layers
+         fmtOut              = case output of
+                                  Right tensor -> show tensor
+                                  Left error   -> error
+         fmtPair (layer, ds) =  printf "%-30s %s" (show layer) (fmtDim ds)
 
 {- Format the dimensions of the tensor -}
 fmtDim :: [Dim] -> String
