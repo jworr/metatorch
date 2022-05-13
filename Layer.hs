@@ -15,7 +15,6 @@ where
 
 import Control.Monad.Writer
 import Data.List
-import Data.Either (isRight)
 import Text.Printf (printf)
 
 import Dim (Dim, lit, multiplyAll)
@@ -29,6 +28,9 @@ data Layer = Linear Dim Dim
 
            --name, hidden layer, bi, batch
            | RNNLast String Dim Bool Bool
+           
+           --channels, window (kernel) size
+           | Conv1d Dim Int
 
            | Permute [Int] 
            | Squeeze Int
@@ -48,6 +50,8 @@ instance Show Layer where
    show (RNNLast name d False True)  = printf "Last %s %s (batch first)" name (show d)
    show (RNNLast name d True True)   = printf "Last-bi-%s %s (batch first)" name (show d)
 
+   show (Conv1d d w)      = printf "Conv1D %s %d" (show d) w
+
    show (Activation name) = name
    show (CELoss d)        = printf "Cross Entropy %s" (show d)
    show (Broken msg)      = printf "Error: %s" msg
@@ -63,8 +67,8 @@ type Flow = Writer [(Layer, [Dim])] ETensor
 --consider switching back to ETensor from Tensor that is:
 --crossEnt :: Dim -> ETensor -> ETensor -> Flow
 crossEnt :: Dim -> Tensor -> ETensor -> Flow
-crossEnt numClasses target input = log $ input >>= loss
-   where log = record (CELoss numClasses)
+crossEnt numClasses target input = wrt $ input >>= loss
+   where wrt = record (CELoss numClasses)
          loss = crossEntChk numClasses target
 
 {- Applies cross entropy loss -}
@@ -93,6 +97,7 @@ crossEntChk numClasses target input
          isNc d     = numClasses == head d
          msg        = printf crossEntError
 
+crossEntError :: String
 crossEntError = unlines ["Cross Ent: input %s does not match target %s with %s classes",
    "Should be one of the following:",
    "input (C) target ()",
@@ -112,8 +117,8 @@ linearChk inSize outSize tensor
 
 {- Applies the linear layer in the flow of the network -}
 linear :: Dim -> Dim -> ETensor -> Flow
-linear inSize outSize eTen = log $ eTen >>= (linearChk inSize outSize)
-   where log = record $ Linear inSize outSize
+linear inSize outSize eTen = wrt $ eTen >>= (linearChk inSize outSize)
+   where wrt = record $ Linear inSize outSize
 
 {- Applies an activation function -}
 act :: String -> ETensor -> Flow
@@ -121,8 +126,8 @@ act name = record $ Activation name
 
 {- Squeezes out a dimension of the tensor -}
 squeeze :: Int -> ETensor -> Flow
-squeeze sDim tensor = log $ tensor >>= (squeezeChk sDim)
-   where log = record $ Squeeze sDim
+squeeze sDim tensor = wrt $ tensor >>= (squeezeChk sDim)
+   where wrt = record $ Squeeze sDim
 
 {- Applies and checks that the squeeze opertion can be applied to the tensor-}
 squeezeChk :: Int -> Tensor -> ETensor
@@ -145,8 +150,8 @@ squeezeChk sDim tensor
 
 {- Perumutes the dimensions of the tensor -}
 permute :: [Int] -> ETensor -> Flow
-permute order tensor = log $ tensor >>= (permuteChk order)
-   where log = record $ Permute order
+permute order tensor = wrt $ tensor >>= (permuteChk order)
+   where wrt = record $ Permute order
 
 {- Applies a permuation of the tensors dimension -}
 permuteChk :: [Int] -> Tensor -> ETensor

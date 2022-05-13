@@ -15,38 +15,55 @@ module Layer.Rnn
 )
 where
 
-import Control.Monad.Writer
-import Data.List
-import Data.Either (isRight)
 import Text.Printf (printf)
 
-import Tensor (Tensor, ETensor, dim, fromDim, isScalar)
+import Tensor (Tensor, ETensor, dim, fromDim)
 import Layer(Layer(..), Flow, record)
 import Dim (Dim, multiply, lit)
 
+rnn :: Dim -> ETensor -> Flow
 rnn  = genRnn "RNN"
+
+lstm :: Dim -> ETensor -> Flow
 lstm = genRnn "LSTM"
-gru  = genRnn "GRU"
 
-rnnBi  = genBiRnn "RNN"
+gru :: Dim -> ETensor -> Flow
+gru = genRnn "GRU"
+
+rnnBi :: Dim -> ETensor -> Flow
+rnnBi = genBiRnn "RNN"
+
+lstmBi :: Dim -> ETensor -> Flow
 lstmBi = genBiRnn "LSTM"
-gruBi  = genBiRnn "GRU"
 
-rnnLast  = genLastRnn "RNN"
+gruBi :: Dim -> ETensor -> Flow
+gruBi = genBiRnn "GRU"
+
+rnnLast:: Bool -> Dim -> ETensor -> Flow
+rnnLast = genLastRnn "RNN"
+
+lstmLast :: Bool -> Dim -> ETensor -> Flow
 lstmLast = genLastRnn "LSTM"
-gruLast  = genLastRnn "GRU"
 
-rnnBiLast  = genBiLastRnn "RNN"
+gruLast :: Bool -> Dim -> ETensor -> Flow
+gruLast = genLastRnn "GRU"
+
+rnnBiLast :: Bool -> Dim -> ETensor -> Flow
+rnnBiLast = genBiLastRnn "RNN"
+
+lstmBiLast :: Bool -> Dim -> ETensor -> Flow
 lstmBiLast = genBiLastRnn "LSTM"
+
+gruBiLast :: Bool -> Dim -> ETensor -> Flow
 gruBiLast  = genBiLastRnn "GRU"
 
 
-{- Models a single directional RNN, outputs at each timestep -}
+{- Models a single directional RNN, outputs at each time step -}
 genRnn :: String -> Dim -> ETensor -> Flow
-genRnn name hidden input = log $ input >>= (rnnChk name hidden)
-   where log = record $ RNN name hidden False
+genRnn name hidden input = wrt $ input >>= (rnnChk name hidden)
+   where wrt = record $ RNN name hidden False
 
-{- Checks that the  -}
+{- Checks that the RNN is applied to the give time series -}
 rnnChk :: String -> Dim -> Tensor -> ETensor
 rnnChk name hidden input
    | has 3     = out ((init size) ++ [hidden])
@@ -57,17 +74,18 @@ rnnChk name hidden input
          size  = dim input
          out d = Right $ fromDim d
 
+rnnChkMsg :: String
 rnnChkMsg = unlines ["%s Layer: input must be 2 (length, H)",
    "or (batch, length, h) or (length, batch, h)"]
 
-{- Models a single directional RNN, that outputs the last timesteps vector -}
+{- Models a single directional RNN, that outputs the last time steps vector -}
 genLastRnn :: String -> Bool -> Dim -> ETensor -> Flow
-genLastRnn name batchFst hidden input = log $ 
+genLastRnn name batchFst hidden input = wrt $ 
    input >>= (lastRnnChk name batchFst (lit 1) hidden) 
 
-   where log = record $ RNNLast name hidden False batchFst
+   where wrt = record $ RNNLast name hidden False batchFst
 
-{- checks and applies a RNN that outputs the last timesteps vector -}
+{- checks and applies a RNN that outputs the last time steps vector -}
 lastRnnChk :: String -> Bool -> Dim -> Dim -> Tensor -> ETensor
 lastRnnChk name batchFst fstOut hidden input
    | has 3     = out [fstOut, batch, hidden]
@@ -79,15 +97,15 @@ lastRnnChk name batchFst fstOut hidden input
          out d = Right $ fromDim d
          batch = if batchFst then head dims else head $ tail dims
 
-{- Models a Bi-Directional RNN, outputs at each timestep -}
+{- Models a Bi-Directional RNN, outputs at each time step -}
 genBiRnn :: String -> Dim -> ETensor -> Flow
-genBiRnn name hidden input = log $ input >>= (rnnChk name bi)
-   where log = record $ RNN name bi True
+genBiRnn name hidden input = wrt $ input >>= (rnnChk name bi)
+   where wrt = record $ RNN name bi True
          bi = multiply (lit 2) hidden
 
 {- Models a Bi-Directional RNN that outputs two "last" vectors -}
 genBiLastRnn :: String -> Bool -> Dim -> ETensor -> Flow
-genBiLastRnn name batchFst hidden input = log $ 
+genBiLastRnn name batchFst hidden input = wrt $ 
    input >>= (lastRnnChk name batchFst (lit 2) hidden) 
 
-   where log = record $ RNNLast name hidden True batchFst
+   where wrt = record $ RNNLast name hidden True batchFst

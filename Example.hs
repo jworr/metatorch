@@ -2,7 +2,8 @@
 import Tensor (Tensor(..))
 import Layer (Flow, start, act, linear, crossEnt, generate, permute, reshape)
 import Layer.Rnn (lstm, gruBi, lstmBiLast)
-import Dim (lit, var, multiply)
+import Layer.Cnn (conv1d)
+import Dim (lit, var, multiply, sub)
 
 --define variables and constants
 l = var "l"
@@ -11,6 +12,8 @@ h = var "h"
 d = var "d"
 _2h = lit 2 `multiply` h
 n = var "n"
+h_2 = h `sub` _2
+l_2 = l `sub` _2
 
 _2  = lit 2
 _4  = lit 4
@@ -41,6 +44,14 @@ batchToken = (start $ Tensor n l k)
            >>= permute [0, 2, 1]
            >>= crossEnt _5 (Matrix n l)
 
+--Conv1d applied to a sequence
+conv = (start $ Tensor n k l)
+     >>= conv1d k h 3
+     >>= permute [0, 2, 1]
+     >>= linear h _4
+     >>= permute [0, 2, 1]
+     >>= crossEnt _4 (Matrix n l_2)
+
 --multi-layer perceptron for 4 classes example 
 mlp :: Flow
 mlp = (start $ Matrix n k) 
@@ -64,5 +75,8 @@ main = do
 
    putStrLn "---Per token classifier, batched---"
    putStrLn $ generate batchToken
+
+   putStrLn "---Sequence + Conv for predicting 4 classes---"
+   putStrLn $ generate conv
 
    return ()
