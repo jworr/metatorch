@@ -9,7 +9,8 @@ module Layer (
    act,
    permute,
    squeeze,
-   reshape
+   reshape,
+   mean 
 )
 where
 
@@ -33,6 +34,11 @@ data Layer = Linear Dim Dim
            | Conv1d Dim Int Int
            | Pool1d String Int Int
 
+           --channels, window size, stride
+           | Conv2d Dim Int Int
+           | Pool2d String Int Int
+
+           | Average Int
            | Permute [Int] 
            | Squeeze Int
            | Reshape [Dim]
@@ -52,6 +58,7 @@ instance Show Layer where
    show (RNNLast name d True True)   = printf "Last-bi-%s %s (batch first)" name (show d)
 
    show (Conv1d d w s)    = printf "Conv1D %s channels, window %d, stride %d" (show d) w s
+   show (Conv2d d w s)    = printf "Conv2D %s channels, window %d, stride %d" (show d) w s
 
    show (Activation name) = name
    show (CELoss d)        = printf "Cross Entropy %s" (show d)
@@ -60,6 +67,8 @@ instance Show Layer where
    show (Squeeze d)       = printf "Squeeze: %d" d
    show (Reshape ds)      = printf "Reshape: %s" (fmtDim ds)
    show (Pool1d name d s) = printf "%s-pooling-1d %d %d" name d s
+   show (Pool2d name d s) = printf "%s-pooling-2d %d %d" name d s
+   show (Average d)       = printf "Average %d" d
 
 --principle type, an operation in the flow of network
 type Flow = Writer [(Layer, [Dim])] ETensor
@@ -106,6 +115,11 @@ crossEntError = unlines ["Cross Ent: input %s does not match target %s with %s c
    "input (N, C) target (N)",
    "input (N, C, d1, d2,...) target (N, d1, d2,...)"]
 
+
+{- Applies the linear layer in the flow of the network -}
+linear :: Dim -> Dim -> ETensor -> Flow
+linear inSize outSize eTen = wrt $ eTen >>= (linearChk inSize outSize)
+   where wrt = record $ Linear inSize outSize
        
 {- Applies a linear NN layer -}
 linearChk :: Dim -> Dim -> Tensor -> ETensor
@@ -116,46 +130,54 @@ linearChk inSize outSize tensor
          size = dim tensor
          msg = printf "Linear Layer: last dimension of %s does not match input size %s"
 
-
-{- Applies the linear layer in the flow of the network -}
-linear :: Dim -> Dim -> ETensor -> Flow
-linear inSize outSize eTen = wrt $ eTen >>= (linearChk inSize outSize)
-   where wrt = record $ Linear inSize outSize
-
 {- Applies an activation function -}
 act :: String -> ETensor -> Flow
 act name = record $ Activation name
 
 {- Squeezes out a dimension of the tensor -}
 squeeze :: Int -> ETensor -> Flow
-squeeze sDim tensor = wrt $ tensor >>= (squeezeChk sDim)
-   where wrt = record $ Squeeze sDim
+squeeze sDim tensor = record (Squeeze sDim) $ tensor >>= (squeezeChk sDim)
 
-{- Applies and checks that the squeeze opertion can be applied to the tensor-}
+{- Applies and checks that the squeeze operation can be applied to the tensor-}
 squeezeChk :: Int -> Tensor -> ETensor
 squeezeChk sDim tensor 
-   | inRange && isOne  = Right $ fromDim newDims
+   | inRange && isOne  = Right $ removeDim sDim tensor
    | otherwise         = Left $ msg
    
    where dims = dim tensor
          inRange = sDim < (length dims) && sDim >= 0
          isOne = (dims !! sDim) == lit 1
+         msg = printf "Squeeze: cannot remove dimension %d from %s" sDim (fmtDim dims)
 
+{- Average out a dimension -}
+mean :: Int -> ETensor -> Flow
+mean avgDim tensor = record (Average avgDim) $ tensor >>= (meanChk avgDim)
+
+{- Checks that average matches the tensor -}
+meanChk :: Int -> Tensor -> ETensor
+meanChk avgDim tensor
+   | avgDim < (length dims) && avgDim >= 0 = Right $ removeDim avgDim tensor
+   | otherwise                             = Left $ msg
+  
+  where dims = dim tensor
+        msg = printf "Average: cannot remove dimension %d from %s" avgDim (fmtDim dims)
+
+{- Remove the dimension from the tensor -}
+removeDim :: Int -> Tensor -> Tensor
+removeDim sDim tensor = fromDim newDims
+    
          --split at the index given
-         (pre, post) = splitAt sDim dims
-
+   where (pre, post) = splitAt sDim (dim tensor)
+         
          --the dimension to drop will be the first of "post"
          newDims     = pre ++ (tail post)
 
-         msg = printf "Squeeze: cannot remove dimension %d from %s" sDim (fmtDim dims)
-     
-
-{- Perumutes the dimensions of the tensor -}
+{- Permutes the dimensions of the tensor -}
 permute :: [Int] -> ETensor -> Flow
 permute order tensor = wrt $ tensor >>= (permuteChk order)
    where wrt = record $ Permute order
 
-{- Applies a permuation of the tensors dimension -}
+{- Applies a permutation of the tensors dimension -}
 permuteChk :: [Int] -> Tensor -> ETensor
 permuteChk order tensor 
    | match && valid = Right $ fromDim newDims
@@ -175,7 +197,7 @@ reshape :: [Dim] -> ETensor -> Flow
 reshape newShape tensor = record (Reshape newShape) $ tensor >>= (reshapeChk newShape)
 
 {- Ensures that the same number of elements exist between the input
-and ouput tensors-}
+and output tensors-}
 reshapeChk :: [Dim] -> Tensor -> ETensor
 reshapeChk newSize tensor
    | matchSize = Right $ fromDim newSize

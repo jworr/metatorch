@@ -21,8 +21,6 @@ Currently, Metatorch has been tested versus Torch version 1.11
 
 ## TO-DOs
 
-* Convolutional Layers
-* Pooling Layers
 * More loss functions such as MSE
 * Multi-layer option for RNNs
 * `join` function to connect two separate network flows

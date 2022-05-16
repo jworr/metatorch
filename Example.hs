@@ -1,20 +1,19 @@
 
 import Tensor (Tensor(..))
-import Layer (Flow, start, act, linear, crossEnt, generate, permute, reshape)
-import Layer.Rnn (lstm, gruBi, lstmBiLast)
-import Layer.Cnn (conv1d, maxPool1d)
-import Dim (lit, var, multiply, add, sub, divBy)
+import Layer (Flow, start, act, linear, crossEnt, generate, permute, reshape, mean)
+import Layer.RNN (lstm, gruBi, lstmBiLast)
+import Layer.CNN (conv2d, maxPool2d)
+import Dim (lit, var, multiply, sub)
 
 --define variables and constants
 l = var "l"
+w = var "w"
 k = var "k"
 h = var "h"
 d = var "d"
 _2h = lit 2 `multiply` h
 n = var "n"
 h_2 = h `sub` _2
-l' = l `sub` _2
-l'' = ((l' `sub` _2) `divBy` 2) `add` (lit 1)
 
 _2  = lit 2
 _4  = lit 4
@@ -45,14 +44,17 @@ batchToken = (start $ Tensor n l k)
            >>= permute [0, 2, 1]
            >>= crossEnt _5 (Matrix n l)
 
---Conv1d applied to a sequence
-conv = (start $ Tensor n k l)
-     >>= conv1d k h 3 1
-     >>= maxPool1d h 2 2
-     >>= permute [0, 2, 1]
+--Conv1d applied to a batch of sequences and makes a prediction
+--for each sequence in the batch
+conv = (start $ Tensor4D n k l w)
+     >>= conv2d k h 5 1
+     >>= maxPool2d h 2 2
+     >>= conv2d h h 3 1
+     >>= maxPool2d h 2 2
+     >>= mean 3
+     >>= mean 2
      >>= linear h _4
-     >>= permute [0, 2, 1]
-     >>= crossEnt _4 (Matrix n l'')
+     >>= crossEnt _4 (Vector n)
 
 --multi-layer perceptron for 4 classes example 
 mlp :: Flow

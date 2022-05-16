@@ -1,4 +1,4 @@
-module Layer.Rnn
+module Layer.RNN
 (
    rnn,
    lstm,
