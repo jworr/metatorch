@@ -29,8 +29,9 @@ data Layer = Linear Dim Dim
            --name, hidden layer, bi, batch
            | RNNLast String Dim Bool Bool
            
-           --channels, window (kernel) size
-           | Conv1d Dim Int
+           --channels, window (kernel) size, stride
+           | Conv1d Dim Int Int
+           | Pool1d String Int Int
 
            | Permute [Int] 
            | Squeeze Int
@@ -50,7 +51,7 @@ instance Show Layer where
    show (RNNLast name d False True)  = printf "Last %s %s (batch first)" name (show d)
    show (RNNLast name d True True)   = printf "Last-bi-%s %s (batch first)" name (show d)
 
-   show (Conv1d d w)      = printf "Conv1D %s %d" (show d) w
+   show (Conv1d d w s)    = printf "Conv1D %s channels, window %d, stride %d" (show d) w s
 
    show (Activation name) = name
    show (CELoss d)        = printf "Cross Entropy %s" (show d)
@@ -58,6 +59,7 @@ instance Show Layer where
    show (Permute ord)     = printf "Permute: %s" (intercalate "," $ map show ord)
    show (Squeeze d)       = printf "Squeeze: %d" d
    show (Reshape ds)      = printf "Reshape: %s" (fmtDim ds)
+   show (Pool1d name d s) = printf "%s-pooling-1d %d %d" name d s
 
 --principle type, an operation in the flow of network
 type Flow = Writer [(Layer, [Dim])] ETensor
@@ -170,8 +172,7 @@ permuteChk order tensor
 
 {- Reshapes the given tensor -}
 reshape :: [Dim] -> ETensor -> Flow
-reshape newShape tensor = log $ tensor >>= (reshapeChk newShape)
-   where log = record $ Reshape newShape
+reshape newShape tensor = record (Reshape newShape) $ tensor >>= (reshapeChk newShape)
 
 {- Ensures that the same number of elements exist between the input
 and ouput tensors-}
@@ -182,6 +183,7 @@ reshapeChk newSize tensor
    where inDims    = dim tensor
          matchSize = (multiplyAll newSize) == (multiplyAll inDims)
 
+reshapeMsg :: String
 reshapeMsg = "Reshape: product of input %s and product of output %s do not match"
 
 {- Records the errors -}
@@ -196,14 +198,14 @@ start ten = writer (Right ten, [])
 
 {- Convert the flow of the network into a String to be printed -}
 generate :: Flow -> String
-generate flow = printf "Final Output: %s\n\n%-30s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
+generate flow = printf "Final Output: %s\n\n%-60s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
 
    where (output, layers)    = runWriter flow
          fmtLayers           = unlines $ map fmtPair layers
          fmtOut              = case output of
                                   Right tensor -> show tensor
-                                  Left error   -> error
-         fmtPair (layer, ds) =  printf "%-30s %s" (show layer) (fmtDim ds)
+                                  Left err      -> err
+         fmtPair (layer, ds) =  printf "%-60s %s" (show layer) (fmtDim ds)
 
 {- Format the dimensions of the tensor -}
 fmtDim :: [Dim] -> String
