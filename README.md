@@ -19,8 +19,87 @@ Look in `Example.hs` for example models. Compile the example with the following 
 
 Currently, Metatorch has been tested versus Torch version 1.11
 
+## Example
+
+A bi-directional LSTM model with linear layer to predict one of 4 classes:
+
+```haskell
+import Tensor (Tensor(..))
+import Layer (generate, start, linear, crossEnt)
+import Layer.RNN (lstmBi)
+import Dim (lit, var, multiply)
+
+n = var "n"
+k = var "k"
+h = var "h"
+h2 = h `multiply` (lit 2)
+_4 = lit 4
+
+--makes a prediction per "token" on a single sequence, 4 classes
+perTokenPred = (start (Matrix n k))
+             >>= lstmBi h
+             >>= linear h2 _4
+             >>= crossEnt _4 (Vector n)
+
+main :: IO ()
+main = putStrLn $ generate perTokenPred
+```
+
+The output is
+```
+Final Output: Vector n
+
+Layers:                                                      Output Dimensions:
+bi-LSTM 2h                                                   nx2h
+Linear 2h 4                                                  nx4
+Cross Entropy 4                                              n
+```
+
+### Catching Errors
+
+Suppose with the same example, a bi-directional LSTM model with linear
+layer to predict one of 4 classes.
+However suppose that a mistake was made setting up the model, and the developer forgot that a bi-LSTM model will double the hidden layer size since it is concatenating the output of two LSTM passes.
+The model would look like this (notice that the linear layer takes an input size of "h"):
+
+```haskell
+import Tensor (Tensor(..))
+import Layer (generate, start, linear, crossEnt)
+import Layer.RNN (lstmBi)
+import Dim (lit, var, multiply)
+
+n = var "n"
+k = var "k"
+h = var "h"
+_4 = lit 4
+
+--makes a prediction per "token" on a single sequence, 4 classes
+perTokenPred = (start (Matrix n k))
+             >>= lstmBi h
+             >>= linear h _4
+             >>= crossEnt _4 (Vector n)
+
+main :: IO ()
+main = putStrLn $ generate perTokenPred
+```
+
+The output of the model will be:
+
+```
+Final Output:
+
+Layers:                                                      Output Dimensions:
+bi-LSTM 2h                                                   nx2h
+Error: Linear Layer: last dimension of nx2h does not match input size h
+```
+
+The error points out that the linear layer actually received a tensor with since "2h" rather than the expected size "h".
+The developer can followup by changing `linear h _4` to `linear h2 _4`.
+
+
 ## TO-DOs
 
+* Documentation!
 * More loss functions such as MSE
 * Multi-layer option for RNNs
 * `join` function to connect two separate network flows
