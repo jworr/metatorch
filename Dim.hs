@@ -23,7 +23,8 @@ module Dim
    multiplyAll,
    sub,
    add,
-   divBy
+   divBy,
+	hasVars
 )
 where
 
@@ -64,6 +65,10 @@ instance Eq Dim where
    (Dim ln ld lds) == (Dim rn rd rds) =  (ln == rn) 
                                       && (ld == rd)
                                       && (sort lds) == (sort rds)
+
+{- Determines if the dimension contains variables -}
+hasVars :: Dim -> Bool
+hasVars = not . null . getVars
 
 getVars :: Dim -> [Sum]
 getVars (Dim _ _ vars) = vars

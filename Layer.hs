@@ -18,11 +18,14 @@ module Layer (
    Layer(..),
    Flow,
    start,
-   generate,
+   input,
+   check,
    record,
    crossEnt,
    linear,
-   act,
+   relu,
+   sigmoid,
+   tanhAct,
    permute,
    squeeze,
    reshape,
@@ -40,18 +43,22 @@ import Tensor (Tensor, ETensor, dim, fromDim, isScalar)
 
 data Layer = Linear Dim Dim
 
-           --name, hidden layer, bidirectional
-           | RNN String Dim Bool
+           --name, input features, hidden layer, bidirectional
+           | RNN String Dim Dim Bool
 
-           --name, hidden layer, bi, batch
-           | RNNLast String Dim Bool Bool
+           --name, input channels, hidden layer, bi, batch
+           | RNNLast String Dim Dim Bool Bool
            
-           --channels, window (kernel) size, stride
-           | Conv1d Dim Int Int
+           --input channels, channels, window (kernel) size, stride
+           | Conv1d Dim Dim Int Int 
+
+           --name, window, stride
            | Pool1d String Int Int
 
            --channels, window size, stride
-           | Conv2d Dim Int Int
+           | Conv2d Dim Dim Int Int  
+
+           --name, window, stride
            | Pool2d String Int Int
 
            | Average Int
@@ -60,21 +67,23 @@ data Layer = Linear Dim Dim
            | Reshape [Dim]
            | Activation String
            | CELoss Dim
+           | Input [Dim]
            | Broken String
+           deriving (Ord, Eq)
 
 instance Show Layer where
 
-   show (Linear d1 d2)       = printf "Linear %s %s" (show d1) (show d2)
-   show (RNN name d True)    = printf "bi-%s %s" name (show d)
-   show (RNN name d False)   = printf "%s %s" name (show d)
+   show (Linear i d)         = printf "Linear %s" (fmtTrans i d)
+   show (RNN name i d True)    = printf "bi-%s %s" name (fmtTrans i d)
+   show (RNN name i d False)   = printf "%s %s" name (fmtTrans i d)
    
-   show (RNNLast name d False False) = printf "Last-%s %s" name (show d)
-   show (RNNLast name d True False)  = printf "Last-bi-%s %s" name (show d)
-   show (RNNLast name d False True)  = printf "Last %s %s (batch first)" name (show d)
-   show (RNNLast name d True True)   = printf "Last-bi-%s %s (batch first)" name (show d)
+   show (RNNLast name i d False False) = printf "Last-%s %s" name (fmtTrans i d)
+   show (RNNLast name i d True False)  = printf "Last-bi-%s %s" name (fmtTrans i d)
+   show (RNNLast name i d False True)  = printf "Last %s %s (batch first)" name (fmtTrans i d)
+   show (RNNLast name i d True True)   = printf "Last-bi-%s %s (batch first)" name (fmtTrans i d)
 
-   show (Conv1d d w s)    = printf "Conv1D %s channels, window %d, stride %d" (show d) w s
-   show (Conv2d d w s)    = printf "Conv2D %s channels, window %d, stride %d" (show d) w s
+   show (Conv1d i d w s)    = printf "Conv1D %s, window %d, stride %d" (fmtTrans i d) w s
+   show (Conv2d i d w s)    = printf "Conv2D %s, window %d, stride %d" (fmtTrans i d) w s
 
    show (Activation name) = name
    show (CELoss d)        = printf "Cross Entropy %s" (show d)
@@ -85,6 +94,11 @@ instance Show Layer where
    show (Pool1d name d s) = printf "%s-pooling-1d %d %d" name d s
    show (Pool2d name d s) = printf "%s-pooling-2d %d %d" name d s
    show (Average d)       = printf "Average %d" d
+   show (Input d)         = printf "Input %s" (fmtDim d)
+
+
+fmtTrans :: Dim -> Dim -> String
+fmtTrans inFeats outFeats = printf "%s -> %s" (show inFeats) (show outFeats)
 
 --principle type, an operation in the flow of network
 type Flow = Writer [(Layer, [Dim])] ETensor
@@ -94,13 +108,13 @@ type Flow = Writer [(Layer, [Dim])] ETensor
 --consider switching back to ETensor from Tensor that is:
 --crossEnt :: Dim -> ETensor -> ETensor -> Flow
 crossEnt :: Dim -> Tensor -> ETensor -> Flow
-crossEnt numClasses target input = wrt $ input >>= loss
+crossEnt numClasses target tensor = wrt $ tensor >>= loss
    where wrt = record (CELoss numClasses)
          loss = crossEntChk numClasses target
 
 {- Applies cross entropy loss -}
 crossEntChk :: Dim -> Tensor -> Tensor -> ETensor
-crossEntChk numClasses target input
+crossEntChk numClasses target tensor 
   
    --input (C) target ()
    | inDim == 1 && tarDim == 0 && isNc inputDims = out
@@ -114,7 +128,7 @@ crossEntChk numClasses target input
    --error
    | otherwise = Left $ msg (fmtDim inputDims) (fmtDim targetDims) (show numClasses)
 
-   where inputDims  = dim input
+   where inputDims  = dim tensor 
          targetDims = dim target
          inDim      = length inputDims
          tarDim     = length targetDims
@@ -142,9 +156,23 @@ linearChk :: Dim -> Dim -> Tensor -> ETensor
 linearChk inSize outSize tensor
    | notScalar && (last size == inSize)  = Right $ fromDim (init size ++ [outSize])
    | otherwise                           = Left $ msg (fmtDim size) (show inSize)
+   
    where notScalar = not $ isScalar tensor
          size = dim tensor
          msg = printf "Linear Layer: last dimension of %s does not match input size %s"
+
+
+{- Applies ReLU as a activation layer-}
+relu :: ETensor -> Flow
+relu = act "ReLU"
+
+{- Applies Sigmoid as a activation layer-}
+sigmoid :: ETensor -> Flow
+sigmoid = act "Sigmoid"
+
+{- Applies Tanh as a activation layer-}
+tanhAct :: ETensor -> Flow
+tanhAct = act "Tanh"
 
 {- Applies an activation function -}
 act :: String -> ETensor -> Flow
@@ -199,8 +227,7 @@ permuteChk order tensor
    | match && valid = Right $ fromDim newDims
    | otherwise      = Left $ msg
    
-   where 
-         dims = dim tensor
+   where dims = dim tensor
          inDims = length $ dims
          match = length order == inDims
          valid = (maximum order) < inDims && (minimum order) == 0
@@ -218,6 +245,7 @@ reshapeChk :: [Dim] -> Tensor -> ETensor
 reshapeChk newSize tensor
    | matchSize = Right $ fromDim newSize
    | otherwise = Left  $ printf reshapeMsg (fmtDim newSize) (fmtDim inDims)
+
    where inDims    = dim tensor
          matchSize = (multiplyAll newSize) == (multiplyAll inDims)
 
@@ -230,13 +258,18 @@ record layer (Right ten) = writer (Right ten, [(layer, dim ten)]) --success
 record _ (Left "")       = writer (Left "", [])                   --no op
 record _ (Left err)      = writer (Left "", [(Broken err, [])])   --record and clear error
 
+{- Initializing the network flor  -}
+input :: [Int] -> Flow
+input dims = start $ fromDim $ map lit dims
+
 {- Initialize the network flow -}
 start :: Tensor -> Flow
-start ten = writer (Right ten, [])
+start ten = writer (Right ten, [(Input dims, dims)])
+   where dims = dim ten
 
 {- Convert the flow of the network into a String to be printed -}
-generate :: Flow -> String
-generate flow = printf "Final Output: %s\n\n%-60s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
+check :: Flow -> String
+check flow = printf "Final Output: %s\n\n%-60s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
 
    where (output, layers)    = runWriter flow
          fmtLayers           = unlines $ map fmtPair layers

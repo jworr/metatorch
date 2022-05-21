@@ -34,16 +34,16 @@ import Dim (Dim, add, sub, divBy, lit)
 {- Applies a 1D Convolutional layer -}
 conv1d :: Dim -> Dim -> Int -> Int -> ETensor -> Flow
 conv1d inChl outChl window stride input 
-   = record (Conv1d outChl window stride) $
+   = record (Conv1d inChl outChl window stride) $
       input >>= (conv1dChk "Conv" inChl outChl window stride)
 
 {-- Applies max pooling --}
 maxPool1d :: Dim -> Int -> Int -> ETensor -> Flow
-maxPool1d = pooling1d "Max"
+maxPool1d = pooling1d "MaxPool"
 
 {-- Applies max pooling --}
 avgPool1d :: Dim -> Int -> Int -> ETensor -> Flow
-avgPool1d = pooling1d "Avg"
+avgPool1d = pooling1d "AvgPool"
 
 {- Applies a 1D Pooling Layer -}
 pooling1d :: String -> Dim -> Int -> Int -> ETensor -> Flow
@@ -68,15 +68,13 @@ d1Err :: String
 d1Err = unlines ["%s1d: input channels %s do not match either have:",
    "shape 3 (batch, channel in, length) or shape 2 (channel in, length)"]
 
-
-
 {-- Applies max pooling --}
 maxPool2d :: Dim -> Int -> Int -> ETensor -> Flow
-maxPool2d = pooling2d "Max"
+maxPool2d = pooling2d "MaxPool"
 
 {-- Applies max pooling --}
 avgPool2d :: Dim -> Int -> Int -> ETensor -> Flow
-avgPool2d = pooling2d "Avg"
+avgPool2d = pooling2d "AvgPool"
 
 {- Applies a 2D Pooling Layer -}
 pooling2d :: String -> Dim -> Int -> Int -> ETensor -> Flow
@@ -87,7 +85,7 @@ pooling2d name channels window stride input
 {- Applies a 2D CNN to a tensor-}
 conv2d :: Dim -> Dim -> Int -> Int -> ETensor -> Flow
 conv2d inChl outChl window stride input
-   = record (Conv2d outChl window stride) $
+   = record (Conv2d inChl outChl window stride) $
       input >>= (conv2dChk "Conv" inChl outChl window stride)
 
 {- Checks that CNN is applied to the time series -}

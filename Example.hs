@@ -15,10 +15,11 @@
 -}
 
 import Tensor (Tensor(..))
-import Layer (Flow, start, act, linear, crossEnt, generate, permute, reshape, mean)
+import Layer (Flow, start, relu, linear, crossEnt, check, permute, reshape, mean)
 import Layer.RNN (lstm, gruBi, lstmBiLast)
 import Layer.CNN (conv2d, maxPool2d)
 import Dim (lit, var, multiply, sub)
+import Generate (generate)
 
 --define variables and constants
 l = var "l"
@@ -38,7 +39,7 @@ _10 = lit 10
 --per "word" classifier for 10 classes
 token :: Flow
 token = (start $ Matrix l k)
-      >>= lstm h
+      >>= lstm k h
       >>= linear h _10
       >>= crossEnt _10 (Vector l)
 
@@ -46,7 +47,7 @@ token = (start $ Matrix l k)
 --one prediction per sequence, 2 classes
 summarize :: Flow
 summarize = (start $ Tensor n l k)
-          >>= lstmBiLast True h
+          >>= lstmBiLast True k h
           >>= reshape [n, _2h]
           >>= linear _2h _2
           >>= crossEnt _2 (Vector n)
@@ -54,13 +55,14 @@ summarize = (start $ Tensor n l k)
 --batched per "word" classifier for 5 classes
 batchToken :: Flow
 batchToken = (start $ Tensor n l k)
-           >>= gruBi h
+           >>= gruBi k h
            >>= linear _2h _5
            >>= permute [0, 2, 1]
            >>= crossEnt _5 (Matrix n l)
 
 --Conv1d applied to a batch of sequences and makes a prediction
 --for each sequence in the batch
+conv :: Flow
 conv = (start $ Tensor4D n k l w)
      >>= conv2d k h 5 1
      >>= maxPool2d h 2 2
@@ -75,7 +77,7 @@ conv = (start $ Tensor4D n k l w)
 mlp :: Flow
 mlp = (start $ Matrix n k) 
       >>= linear k d
-      >>= act "ReLu"
+      >>= relu
       >>= linear d _4
       >>= crossEnt _4 (Vector n)
 
@@ -84,18 +86,21 @@ main :: IO ()
 main = do
    
    putStrLn "---MLP---"
-   putStrLn $ generate mlp
+   putStrLn $ check mlp
 
    putStrLn "---Per Token classifier---"
-   putStrLn $ generate token
+   putStrLn $ check token
    
    putStrLn "---Sequence Summarization---"
-   putStrLn $ generate summarize
+   putStrLn $ check summarize
 
    putStrLn "---Per token classifier, batched---"
-   putStrLn $ generate batchToken
+   putStrLn $ check batchToken
 
    putStrLn "---Sequence + Conv for predicting 4 classes---"
-   putStrLn $ generate conv
+   putStrLn $ check conv
+
+   putStrLn "--MLP Code--"
+   putStrLn $ generate False conv
 
    return ()
