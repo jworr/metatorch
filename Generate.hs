@@ -11,7 +11,7 @@ import Data.Char (toLower)
 import Data.List
 
 import Layer (Layer(..), Flow)
-import Dim (Dim, hasVars)
+import Dim (Dim, dimVars, hasVars, addPrefix)
 
 type LayerNames = [(Layer, String)]
 type LayerCount = M.Map LayerType Int
@@ -27,8 +27,9 @@ generate spaces network = case model network of
       where names      = assignNames layers
             prefix     = if spaces then spaceIndent else tabIndent
             declLayers = filter (not . isFunctional . fst) names
-            construct  = generateInit prefix declLayers
-            forward    = generateForward prefix names
+            attributes = nub $ concatMap dimVars $ concatMap layerDims $ map fst declLayers
+            construct  = generateInit prefix attributes declLayers
+            forward    = generateForward prefix attributes names
             preamble   = ["import torch as t",
                           "import torch.nn as nn",
                           "",
@@ -39,50 +40,60 @@ generate spaces network = case model network of
 model :: Flow -> Either String Model
 model flow = case output of 
    Right _  -> Right layers
-   Left msg -> Left $ "Could not generate code: " ++ msg
+   Left msg -> Left $ "Could not generate code " ++ msg
 
    where (output, layersWithDim)  = runWriter flow
          layers                   = map fst layersWithDim
 
 
 {- Generates the constructor (init) for the model -}
-generateInit :: String -> LayerNames -> String
-generateInit prefix namedLayers = 
-   unlines $ [printf initPre declaredVars, super] ++ decls
+generateInit :: String -> [String] -> LayerNames -> String
+generateInit prefix vars namedLayers = 
+   unlines $ [initDecl args, super] ++ attrDecls ++ layerDecls
 
-   where initPre      = prefix ++ "def __init__(self, %s):"
-         indent       = prefix ++ prefix
-         super        = indent ++ "super().__init__()\n"
-         layers       = map fst namedLayers
-         vars         = filter hasVars $ nub $ concatMap layerDims layers
-         declaredVars = intercalate ", " (map show vars)
-         decls        = map (\ l -> indent ++ (uncurry genDecl l)) namedLayers
+   where initDecl     = printf (prefix ++ "def __init__(self, %s):")
+         indent s     = prefix ++ prefix ++ s
+         super        = indent "super().__init__()\n"
+         args         = intercalate ", " vars
+         attrDecls    = map (indent . genAttrDecl) vars
+         layerDecls   = map (indent . (uncurry genDecl)) namedLayers
 
+{- Creates an attribute per each dimension variable -}
+genAttrDecl :: String -> String
+genAttrDecl var = printf "self.%s = %s" var var
+
+
+--TODO add an "size" expansion
 {- Generates the forward method for the model -}
-generateForward :: String -> LayerNames -> String
-generateForward prefix namedLayers = 
-   unlines $ [forwardPre] ++ calls ++ [indent, indent ++ "return tensor"]
+generateForward :: String -> [String] -> LayerNames -> String
+generateForward prefix vars namedLayers = 
+   unlines $ [forwardPre, indent . genSize . fst $ head namedLayers] 
+             ++ calls ++ [indent "", indent "return tensor"]
 
    where forwardPre   = prefix ++ "def forward(self, tensor):\n"
-         indent       = prefix ++ prefix
+         indent s     = prefix ++ prefix ++ s
          steps        = filter (callable . fst) namedLayers
-         calls        = map (\ l -> indent ++ (uncurry genCall l)) steps
+         calls        = map (indent . (uncurry $ genCall vars)) steps
 
 {- Generates calls of layers -}
-genCall :: Layer -> String -> String
-genCall (RNN _ _ _ _) name          = printf "(tensor, _) = self.%s(tensor)" name
-genCall (RNNLast _ _ _ _ _) name    = printf "(_, tensor) = self.%s(tensor)" name
-genCall (Average index) _           = printf "tensor = t.mean(tensor, %d)" index
-genCall (Permute dims) _            = printf "tensor = tensor.permute(%s)" (fmtIndex dims)
+genCall :: [String] -> Layer -> String -> String
+genCall _ (RNN _ _ _ _) name             = printf "tensor, _ = self.%s(tensor)" name
+genCall _ (RNNLast "LSTM" _ _ _ _) name  = printf "_, (tensor, _) = self.%s(tensor)" name
+genCall _ (RNNLast _ _ _ _ _) name       = printf "_, tensor = self.%s(tensor)" name
+genCall _ (Average index) _              = printf "tensor = t.mean(tensor, %d)" index
+genCall _ (Permute dims) _               = printf "tensor = tensor.permute(%s)" (fmtIndex dims)
 
+   --note this assumes a constant or single variable dimension
    where fmtIndex ds = intercalate ", " (map show ds)
 
-genCall (Squeeze index) _           = printf "tensor = tensor.squeeze(%d)" index
-genCall (Reshape dims) _            = printf "tensor = tensor.rehape(%s)" (fmtDim dims)
+genCall _ (Squeeze index) _              = printf "tensor = tensor.squeeze(%d)" index
+genCall attrs (Reshape dims) _           = printf "tensor = t.reshape(tensor, (%s))" (fmtDim dims)
 
-   where fmtDim ds = intercalate ", " (map show ds)
+   where fmtDim ds  = intercalate ", " $ map (show . fmtVar) ds
+         fmtVar v   = if hasAttrs v then addPrefix "self." v else v
+         hasAttrs d = any (\ v -> v `elem` attrs) (dimVars d)
 
-genCall layer name                  = printf "tensor = self.%s(tensor)" name
+genCall _ _ name                         = printf "tensor = self.%s(tensor)" name
 
 
 {- Generates a layer's declaration -}
@@ -99,8 +110,9 @@ declare (RNNLast name inFeat outFeat bi batch) =
    printf py name (show inFeat) (show outFeat) (show bi) (show batch)
       where py = "nn.%s(%s, %s, bidirectional=%s, batch_first=%s)"
 
-declare (Conv1d inF outF window stride) = printf py (show inF) (show outF) window stride
-   where py = "nn.Conv1d(%s, %s, %d, %d)" 
+declare (Conv1d inF outF window stride) = 
+   printf py (show inF) (show outF) window stride
+      where py = "nn.Conv1d(%s, %s, %d, %d)" 
 
 declare (Pool1d name window stride) = printf py name window stride
    where py = "nn.%s1d(%d, %d)"
@@ -117,10 +129,17 @@ declare (Linear inF outF) = printf py (show inF) (show outF)
 
 declare _ = ""
 
+{- Generates the line that unpacks the size of the given tensor -}
+genSize :: Layer -> String
+genSize (Input dims) = printf "%s = tensor.size()" assignment
 
-{- Generates the layer application code -}
-genApply :: Layer -> String -> String -> String
-genApply layer name varName = ""
+   where genInput di
+            | hasVars di   = show di
+            | otherwise    = "_"
+
+         assignment = intercalate ", " (map genInput dims)
+
+genSize _ = ""
 
 {- assigns attribute names to each layer -}
 assignNames :: Model -> LayerNames

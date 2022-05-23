@@ -159,7 +159,7 @@ linearChk inSize outSize tensor
    
    where notScalar = not $ isScalar tensor
          size = dim tensor
-         msg = printf "Linear Layer: last dimension of %s does not match input size %s"
+         msg = printf "Linear Layer: last dimension of %s does not match expected input size %s"
 
 
 {- Applies ReLU as a activation layer-}
@@ -259,8 +259,8 @@ record _ (Left "")       = writer (Left "", [])                   --no op
 record _ (Left err)      = writer (Left "", [(Broken err, [])])   --record and clear error
 
 {- Initializing the network flor  -}
-input :: [Int] -> Flow
-input dims = start $ fromDim $ map lit dims
+input :: [Dim] -> Flow
+input dims = start $ fromDim dims
 
 {- Initialize the network flow -}
 start :: Tensor -> Flow

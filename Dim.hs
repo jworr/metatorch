@@ -24,10 +24,13 @@ module Dim
    sub,
    add,
    divBy,
-	hasVars
+   hasVars,
+   dimVars,
+   addPrefix
 )
 where
 
+import Data.List (intercalate)
 import Text.Printf (printf)
 import Data.List (sort)
 
@@ -54,17 +57,38 @@ instance Show Dim where
    show (Dim num 1 [])        = show num
    show (Dim num denom [])    = printf "(%d/%d)" num denom
    show (Dim 1 1 [v])         = show v
-   show (Dim num 1 [v])       = printf "%d%s" num (show v)
-   show (Dim num denom [v])   = printf "(%d/%d)%s" num denom (show v)
+   show (Dim num 1 [v])       = printf "%d*%s" num (show v)
+   show (Dim num denom [v])   = printf "(%d/%d)*%s" num denom (show v)
    show (Dim 1 1 vars)        = unwords $ map show vars
-   show (Dim num 1 vars)      = printf "%d(%s)" num (unwords $ map show vars)
-   show (Dim num denom vars)  = printf "(%d/%d)(%s)" num denom (unwords $ map show vars)
+   show (Dim num 1 vars)      = printf "%d*(%s)" num (showVars vars)
+   show (Dim num denom vars)  = printf "(%d/%d)*(%s)" num denom (showVars vars)
 
 instance Eq Dim where
 
    (Dim ln ld lds) == (Dim rn rd rds) =  (ln == rn) 
                                       && (ld == rd)
                                       && (sort lds) == (sort rds)
+
+showVars :: [Sum] -> String
+showVars vars = intercalate "*" $ map show vars
+
+{- Adds a prefix to all the variable names -}
+addPrefix :: String -> Dim -> Dim
+addPrefix prefix (Dim num denom vars) = Dim num denom $ map (addSumPrefix prefix) vars
+
+addSumPrefix :: String -> Sum -> Sum
+addSumPrefix prefix (Var var)            = Var (prefix ++ var)
+addSumPrefix prefix (Sum left right)     = Sum (addPrefix prefix left) (addPrefix prefix right)
+addSumPrefix prefix (Diff left right)    = Diff (addPrefix prefix left) (addPrefix prefix right)
+
+{- Returns all the individual variables used in the dimension -}
+dimVars :: Dim -> [String]
+dimVars (Dim _ _ sums) = concatMap sumVars sums
+
+sumVars :: Sum -> [String]
+sumVars (Var var)         = [var]
+sumVars (Sum left right)  = (dimVars left) ++ (dimVars right)
+sumVars (Diff left right) = (dimVars left) ++ (dimVars right)
 
 {- Determines if the dimension contains variables -}
 hasVars :: Dim -> Bool

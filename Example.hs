@@ -15,7 +15,7 @@
 -}
 
 import Tensor (Tensor(..))
-import Layer (Flow, start, relu, linear, crossEnt, check, permute, reshape, mean)
+import Layer (Flow, input, relu, linear, crossEnt, check, permute, reshape, mean)
 import Layer.RNN (lstm, gruBi, lstmBiLast)
 import Layer.CNN (conv2d, maxPool2d)
 import Dim (lit, var, multiply, sub)
@@ -38,7 +38,7 @@ _10 = lit 10
 
 --per "word" classifier for 10 classes
 token :: Flow
-token = (start $ Matrix l k)
+token = input [l, k]
       >>= lstm k h
       >>= linear h _10
       >>= crossEnt _10 (Vector l)
@@ -46,7 +46,7 @@ token = (start $ Matrix l k)
 --sequence summarization, bi-directional LSTM, last vectors used for prediction
 --one prediction per sequence, 2 classes
 summarize :: Flow
-summarize = (start $ Tensor n l k)
+summarize = input [n, l, k]
           >>= lstmBiLast True k h
           >>= reshape [n, _2h]
           >>= linear _2h _2
@@ -54,7 +54,7 @@ summarize = (start $ Tensor n l k)
 
 --batched per "word" classifier for 5 classes
 batchToken :: Flow
-batchToken = (start $ Tensor n l k)
+batchToken = input [n, l, k]
            >>= gruBi k h
            >>= linear _2h _5
            >>= permute [0, 2, 1]
@@ -63,7 +63,7 @@ batchToken = (start $ Tensor n l k)
 --Conv1d applied to a batch of sequences and makes a prediction
 --for each sequence in the batch
 conv :: Flow
-conv = (start $ Tensor4D n k l w)
+conv = input [n, k, l, w]
      >>= conv2d k h 5 1
      >>= maxPool2d h 2 2
      >>= conv2d h h 3 1
@@ -75,7 +75,7 @@ conv = (start $ Tensor4D n k l w)
 
 --multi-layer perceptron for 4 classes example 
 mlp :: Flow
-mlp = (start $ Matrix n k) 
+mlp = input [n, k]
       >>= linear k d
       >>= relu
       >>= linear d _4
@@ -100,7 +100,7 @@ main = do
    putStrLn "---Sequence + Conv for predicting 4 classes---"
    putStrLn $ check conv
 
-   putStrLn "--MLP Code--"
-   putStrLn $ generate False conv
+   putStrLn "--Code--"
+   putStrLn $ generate False summarize
 
    return ()

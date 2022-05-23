@@ -25,7 +25,8 @@ A bi-directional LSTM model with linear layer to predict one of 4 classes:
 
 ```haskell
 import Tensor (Tensor(..))
-import Layer (generate, start, linear, crossEnt)
+import Layer (check, input, linear, crossEnt)
+import Generate (generate)
 import Layer.RNN (lstmBi)
 import Dim (lit, var, multiply)
 
@@ -36,23 +37,55 @@ h2 = h `multiply` (lit 2)
 _4 = lit 4
 
 --makes a prediction per "token" on a single sequence, 4 classes
-perTokenPred = (start (Matrix n k))
-             >>= lstmBi h
+perTokenPred = input [n, k]
+             >>= lstmBi k h
              >>= linear h2 _4
              >>= crossEnt _4 (Vector n)
 
 main :: IO ()
-main = putStrLn $ generate perTokenPred
+main = do
+   
+   putStrLn $ check perTokenPred
+
+   putStrLn "---Code---"
+
+   putStrLn $ generate True perTokenPred
 ```
 
-The output is
+The output of `check` is
 ```
 Final Output: Vector n
 
 Layers:                                                      Output Dimensions:
-bi-LSTM 2h                                                   nx2h
-Linear 2h 4                                                  nx4
+Input nxk                                                    nxk
+bi-LSTM k -> 2*h                                             nx2*h
+Linear 2*h -> 4                                              nx4
 Cross Entropy 4                                              n
+```
+
+`generate` produces the following code:
+
+```Python
+import torch as t
+import torch.nn as nn
+
+class Model(nn.Module):
+
+    def __init__(self, k, h):
+        super().__init__()
+
+        self.k = k
+        self.h = h
+        self.lstm = nn.LSTM(k, 2*h, bidirectional=True)
+        self.linear = nn.Linear(2*h, 4)
+
+    def forward(self, tensor):
+
+        n, k = tensor.size()
+        tensor, _ = self.lstm(tensor)
+        tensor = self.linear(tensor)
+
+        return tensor
 ```
 
 ### Catching Errors
@@ -64,23 +97,31 @@ The model would look like this (notice that the linear layer takes an input size
 
 ```haskell
 import Tensor (Tensor(..))
-import Layer (generate, start, linear, crossEnt)
+import Layer (check, input, linear, crossEnt)
+import Generate (generate)
 import Layer.RNN (lstmBi)
 import Dim (lit, var, multiply)
 
 n = var "n"
 k = var "k"
 h = var "h"
+h2 = h `multiply` (lit 2)
 _4 = lit 4
 
 --makes a prediction per "token" on a single sequence, 4 classes
-perTokenPred = (start (Matrix n k))
-             >>= lstmBi h
+perTokenPred = input [n, k]
+             >>= lstmBi k h
              >>= linear h _4
              >>= crossEnt _4 (Vector n)
 
 main :: IO ()
-main = putStrLn $ generate perTokenPred
+main = do
+   
+   putStrLn $ check perTokenPred
+
+   putStrLn "---Code---"
+
+   putStrLn $ generate True perTokenPred
 ```
 
 The output of the model will be:
@@ -89,8 +130,12 @@ The output of the model will be:
 Final Output:
 
 Layers:                                                      Output Dimensions:
-bi-LSTM 2h                                                   nx2h
-Error: Linear Layer: last dimension of nx2h does not match input size h
+Input nxk                                                    nxk
+bi-LSTM k -> 2*h                                             nx2*h
+Error: Linear Layer: last dimension of nx2*h does not match expected input size h
+
+---Code---
+Could not generate code:
 ```
 
 The error points out that the linear layer actually received a tensor with since "2h" rather than the expected size "h".
@@ -103,4 +148,4 @@ The developer can followup by changing `linear h _4` to `linear h2 _4`.
 * More loss functions such as MSE
 * Multi-layer option for RNNs
 * `join` function to connect two separate network flows
-* PyTorch code generator
+* Arithmetic for dimensions is fragile, needs improvement.
