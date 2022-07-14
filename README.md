@@ -1,7 +1,7 @@
 # Metatorch
 
 Metatorch is a library and framework for prototyping PyTorch models with Haskell.
-The idea is to enable developers to quickly layout and verify the design of a model.
+The idea is to enable developers to layout and verify the design of a model.
 Specially, the trouble with PyTorch is often ensuring that the dimensions of different neural network and tensor operations match correctly.
 The goal to enable developers to rapidly prototype and successfully implement a PyTorch model with a few runtime errors as possible.
 
@@ -13,7 +13,6 @@ Error messages provided by Metatorch are based on the PyTorch documentation and 
 
 Metatorch is a work in progress and is a proof of concept at this point.
 More Pytorch layers and operations will be implemented in the near future.
-Ultimately the goal of the project is to create a code generator that produces Python classes based on a prototype.
 
 Look in `Example.hs` for example models. Compile the example with the following command: `ghc --make Example -outputdir=lib`. Run the example with the command `./Example`
 
