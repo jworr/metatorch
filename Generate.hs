@@ -1,7 +1,4 @@
-module Generate(
-   generate
-)
-where
+module Generate (generate) where
 
 import Control.Monad.Writer
 
@@ -22,58 +19,102 @@ type Model = [Layer]
 generate :: Bool -> Flow -> String
 generate spaces network = case model network of
    Left  err    -> err
-   Right layers -> unlines $ preamble ++ [construct] ++ [forward]
+   Right layers -> unlines code
    
       where names      = assignNames layers
             prefix     = if spaces then spaceIndent else tabIndent
+
+            --all the layers that need to be declared
             declLayers = filter (not . isFunctional . fst) names
-            attributes = nub $ concatMap dimVars $ concatMap layerDims $ map fst declLayers
+
+            --get all the unique variable names from all the layers
+            attributes = nub . concatMap dimVars . concatMap layerDims $ map fst declLayers
+
+            --constructor for the model
             construct  = generateInit prefix attributes declLayers
+
+            --forward method
             forward    = generateForward prefix attributes names
-            preamble   = ["import torch as t",
+
+            --training method
+            train      = case find isLoss layers of
+                           Just lossLayer -> generateTraining prefix lossLayer
+                           _              -> ""
+
+            --all the code
+            code       = ["from random import shuffle",
+                          "from time import time",
+                          "import torch as t",
                           "import torch.nn as nn",
                           "",
                           "class Model(nn.Module):",
-                          ""]
+                          "",
+                          construct,
+                          forward,
+                          train]
+
 
 {- Gets the model from the network flow -}
 model :: Flow -> Either String Model
-model flow = case output of 
-   Right _  -> Right layers
-   Left msg -> Left $ "Could not generate code " ++ msg
-
-   where (output, layersWithDim)  = runWriter flow
-         layers                   = map fst layersWithDim
+model flow = 
+   let
+      (output, layersWithDim)  = runWriter flow
+      layers                   = map fst layersWithDim
+   in
+      case output of 
+         Right _  -> Right layers
+         Left msg -> Left $ "Could not generate code " ++ msg
 
 
 {- Generates the constructor (init) for the model -}
 generateInit :: String -> [String] -> LayerNames -> String
 generateInit prefix vars namedLayers = 
-   unlines $ [initDecl args, super] ++ attrDecls ++ layerDecls
+   let 
+      --declaration of the constructor
+      initDecl     = printf (prefix ++ "def __init__(self, loss_function, %s):")
 
-   where initDecl     = printf (prefix ++ "def __init__(self, %s):")
-         indent s     = prefix ++ prefix ++ s
-         super        = indent "super().__init__()\n"
-         args         = intercalate ", " vars
-         attrDecls    = map (indent . genAttrDecl) vars
-         layerDecls   = map (indent . (uncurry genDecl)) namedLayers
+      --function to apply indenting
+      indent s     = prefix ++ prefix ++ s
+
+      --format the arguments to the constructor
+      args         = intercalate ", " vars
+
+      --call to super constructor
+      super        = indent "super().__init__()\n"
+
+      --loss function
+      loss         = indent "self.loss_function = loss_function"
+
+      --declare all the attributes like hidden layer size
+      attrDecls    = map (indent . genAttrDecl) vars
+
+      --declare all the layers
+      layerDecls   = map (indent . (uncurry genDecl)) namedLayers
+   in
+      unlines $ [initDecl args, super, loss] ++ attrDecls ++ layerDecls
+
 
 {- Creates an attribute per each dimension variable -}
 genAttrDecl :: String -> String
 genAttrDecl var = printf "self.%s = %s" var var
 
 
---TODO add an "size" expansion
 {- Generates the forward method for the model -}
 generateForward :: String -> [String] -> LayerNames -> String
 generateForward prefix vars namedLayers = 
-   unlines $ [forwardPre, indent . genSize . fst $ head namedLayers] 
-             ++ calls ++ [indent "", indent "return tensor"]
+   let
+      indent s     = prefix ++ prefix ++ s
+      steps        = filter (callable . fst) namedLayers
+      calls        = unlines $ map (indent . (uncurry $ genCall vars)) steps
+   in
+      unlines $ [prefix ++ "def forward(self, tensor):",
+                 indent "\"\"\"",
+                 indent "Applies the model to the given tensor",
+                 indent "\"\"\"",
+                 indent . genSize . fst $ head namedLayers,
+                 calls,
+                 indent "return tensor"]
 
-   where forwardPre   = prefix ++ "def forward(self, tensor):\n"
-         indent s     = prefix ++ prefix ++ s
-         steps        = filter (callable . fst) namedLayers
-         calls        = map (indent . (uncurry $ genCall vars)) steps
 
 {- Generates calls of layers -}
 genCall :: [String] -> Layer -> String -> String
@@ -81,65 +122,120 @@ genCall _ (RNN _ _ _ _) name             = printf "tensor, _ = self.%s(tensor)" 
 genCall _ (RNNLast "LSTM" _ _ _ _) name  = printf "_, (tensor, _) = self.%s(tensor)" name
 genCall _ (RNNLast _ _ _ _ _) name       = printf "_, tensor = self.%s(tensor)" name
 genCall _ (Average index) _              = printf "tensor = t.mean(tensor, %d)" index
-genCall _ (Permute dims) _               = printf "tensor = tensor.permute(%s)" (fmtIndex dims)
-
-   --note this assumes a constant or single variable dimension
-   where fmtIndex ds = intercalate ", " (map show ds)
+genCall _ (Permute dims) _               = 
+   let
+      --note this assumes a constant or single variable dimension
+      fmtIndex ds = intercalate ", " (map show ds)
+   in
+      printf "tensor = tensor.permute(%s)" (fmtIndex dims)
 
 genCall _ (Squeeze index) _              = printf "tensor = tensor.squeeze(%d)" index
-genCall attrs (Reshape dims) _           = printf "tensor = t.reshape(tensor, (%s))" (fmtDim dims)
-
-   where fmtDim ds  = intercalate ", " $ map (show . fmtVar) ds
-         fmtVar v   = if hasAttrs v then addPrefix "self." v else v
-         hasAttrs d = any (\ v -> v `elem` attrs) (dimVars d)
+genCall attrs (Reshape dims) _           = 
+   let
+      --determines if the dimensions has any class attribute variables
+      hasAttrs d = any (\ v -> v `elem` attrs) (dimVars d)
+      fmtDim ds  = intercalate ", " $ map (show . fmtVar) ds
+      fmtVar v   = if hasAttrs v then addPrefix "self." v else v
+   in
+      printf "tensor = t.reshape(tensor, (%s))" (fmtDim dims)
 
 genCall _ _ name                         = printf "tensor = self.%s(tensor)" name
 
 
-{- Generates a layer's declaration -}
+{- Generates a layer's declaration i.e. inside the class constructor -}
 genDecl :: Layer -> String -> String
 genDecl layer name = printf "self.%s = %s" name (declare layer)
   
 {- Generates the Pytorch object instantiation -}
 declare :: Layer -> String
 declare  (RNN name inFeat outFeat bi) = 
-   printf py name (show inFeat) (show outFeat) (show bi)
-      where py = "nn.%s(%s, %s, bidirectional=%s)"
+   let
+      py = "nn.%s(%s, %s, bidirectional=%s)"
+   in
+      printf py name (show inFeat) (show outFeat) (show bi)
 
 declare (RNNLast name inFeat outFeat bi batch) = 
-   printf py name (show inFeat) (show outFeat) (show bi) (show batch)
-      where py = "nn.%s(%s, %s, bidirectional=%s, batch_first=%s)"
+   let
+      py = "nn.%s(%s, %s, bidirectional=%s, batch_first=%s)"
+   in
+      printf py name (show inFeat) (show outFeat) (show bi) (show batch)
 
 declare (Conv1d inF outF window stride) = 
-   printf py (show inF) (show outF) window stride
-      where py = "nn.Conv1d(%s, %s, %d, %d)" 
+   let
+      py = "nn.Conv1d(%s, %s, %d, %d)" 
+   in
+      printf py (show inF) (show outF) window stride
 
-declare (Pool1d name window stride) = printf py name window stride
-   where py = "nn.%s1d(%d, %d)"
+declare (Pool1d name window stride) = 
+   printf "nn.%s1d(%d, %d)" name window stride
 
-declare (Conv2d inF outF window stride) = printf py (show inF) (show outF) window stride
-   where py = "nn.Conv2d(%s, %s, %d, %d)"
+declare (Conv2d inF outF window stride) = 
+   let
+      py = "nn.Conv2d(%s, %s, %d, %d)"
+   in
+      printf py (show inF) (show outF) window stride
 
-declare (Pool2d name window stride) = printf py name window stride
-   where py = "nn.%s2d(%d, %d)"
+declare (Pool2d name window stride) = 
+   printf "nn.%s2d(%d, %d)" name window stride
 
 declare (Activation name) = printf "nn.%s()" name
-declare (Linear inF outF) = printf py (show inF) (show outF)
-   where py = "nn.Linear(%s, %s)"
+declare (Linear inF outF) = 
+   printf "nn.Linear(%s, %s)" (show inF) (show outF)
 
 declare _ = ""
 
 {- Generates the line that unpacks the size of the given tensor -}
 genSize :: Layer -> String
-genSize (Input dims) = printf "%s = tensor.size()" assignment
+genSize (Input dims) = 
+   let
+      genInput di
+         | hasVars di   = show di   --use the variable name
+         | otherwise    = "_"       --constants are replaced with _
 
-   where genInput di
-            | hasVars di   = show di
-            | otherwise    = "_"
-
-         assignment = intercalate ", " (map genInput dims)
+      assignment = intercalate ", " (map genInput dims)
+   in
+      printf "%s = tensor.size()" assignment
 
 genSize _ = ""
+
+{- Generates the model's training method -}
+generateTraining :: String -> Layer -> String
+generateTraining prefix _ =
+   let
+      --indents the line
+      tab n s = concat (replicate n prefix) ++ s
+   in
+      unlines $ map (tab 1) 
+               ["def fit(self, train_data, dev_data, num_epochs, optim):",
+                tab 1 "\"\"\"",
+                tab 1 "Trains the model, the data collections are iterables of (inst, target) tuples",
+                tab 1 "\"\"\"",
+                tab 1 "self.train()",
+                tab 1 "epoch = 1",
+                tab 1 "",
+                tab 1 "# for a fixed number of epochs, train the model",
+                tab 1 "while epoch < num_epochs:",
+                tab 2 "print(\"Epoch %d\" % epoch, end=\"\")",
+                tab 2 "start_time = time()",
+                tab 2 "total_loss = 0.0",
+                tab 2 "",
+                tab 2 "shuffle(train_data)",
+                tab 2 "",
+                tab 2 "# for each training example, make a prediction, measure the loss, and update",
+                tab 2 "for inst, target in train_data:",
+                tab 3 "self.zero_grad()",
+                tab 3 "pred = self(inst)",
+                tab 3 "loss = self.loss_function(pred, target)",
+                tab 3 "total_loss += loss.data.item()",
+                tab 3 "loss.backwards()",
+                tab 3 "optim.step()",
+                tab 3 "",
+                tab 2 "print(\" Loss: %7.2f |\" % (total_loss / len(train_data)), end=\"\") ",
+                tab 2 "print(\" Time: %8.2f\" % (time() - start_time), \"seconds\")",
+                tab 2 "epoch += 1",
+                tab 2 "",
+                tab 1 "self.eval()"
+               ]
 
 {- assigns attribute names to each layer -}
 assignNames :: Model -> LayerNames
@@ -147,24 +243,28 @@ assignNames network = reverse $ assignHelper M.empty network []
 
 assignHelper :: LayerCount -> Model -> LayerNames -> LayerNames
 assignHelper _ [] names                      = names
-assignHelper oldCounts (layer:rest) oldNames = assignHelper counts rest names
-        
-         --increment the counts
-   where counts = M.insertWith (+) (layerType layer) 1 oldCounts         
+assignHelper oldCounts (layer:rest) oldNames = 
+  let 
+      --increment the counts
+      counts = M.insertWith (+) (layerType layer) 1 oldCounts         
 
-         --update the names
-         names  = (layer, makeName counts layer) : oldNames
+      --update the names
+      names  = (layer, makeName counts layer) : oldNames
+  in
+     assignHelper counts rest names
 
 {- Makes a name for the layer based on how many other layers exist previously -}
 makeName :: LayerCount -> Layer -> String
-makeName counts layer = if cnt > 1 then (printf "%s%d" name cnt) else name
-  
-         --lookup the count of the layer type, should never be "Nothing"
-   where cnt  = case M.lookup (layerType layer) counts of
+makeName counts layer = 
+   let 
+      --lookup the count of the layer type, should never be "Nothing"
+      cnt  = case M.lookup (layerType layer) counts of
                  Just count -> count
                  _          -> 0
 
-         name = lower $ layerType layer
+      name = lower $ layerType layer
+   in
+      if cnt > 1 then (printf "%s%d" name cnt) else name
 
 {- Produces the layer's type -}
 layerType :: Layer -> LayerType
@@ -202,6 +302,11 @@ callable (Input _)  = False
 callable (Broken _) = False
 callable (CELoss _) = False
 callable _          = True
+
+{- Determines if the layer is a loss function -}
+isLoss :: Layer -> Bool
+isLoss (CELoss _) = True
+isLoss _          = False
 
 {- Produces the dimensions use by the layer -}
 layerDims :: Layer -> [Dim]

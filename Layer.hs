@@ -108,9 +108,12 @@ type Flow = Writer [(Layer, [Dim])] ETensor
 --consider switching back to ETensor from Tensor that is:
 --crossEnt :: Dim -> ETensor -> ETensor -> Flow
 crossEnt :: Dim -> Tensor -> ETensor -> Flow
-crossEnt numClasses target tensor = wrt $ tensor >>= loss
-   where wrt = record (CELoss numClasses)
-         loss = crossEntChk numClasses target
+crossEnt numClasses target tensor = 
+   let
+      wrt = record (CELoss numClasses)
+      loss = crossEntChk numClasses target
+   in
+      wrt $ tensor >>= loss
 
 {- Applies cross entropy loss -}
 crossEntChk :: Dim -> Tensor -> Tensor -> ETensor
@@ -148,8 +151,11 @@ crossEntError = unlines ["Cross Ent: input %s does not match target %s with %s c
 
 {- Applies the linear layer in the flow of the network -}
 linear :: Dim -> Dim -> ETensor -> Flow
-linear inSize outSize eTen = wrt $ eTen >>= (linearChk inSize outSize)
-   where wrt = record $ Linear inSize outSize
+linear inSize outSize eTen = 
+   let
+      wrt = record $ Linear inSize outSize
+   in
+      wrt $ eTen >>= (linearChk inSize outSize)
        
 {- Applies a linear NN layer -}
 linearChk :: Dim -> Dim -> Tensor -> ETensor
@@ -208,18 +214,23 @@ meanChk avgDim tensor
 
 {- Remove the dimension from the tensor -}
 removeDim :: Int -> Tensor -> Tensor
-removeDim sDim tensor = fromDim newDims
-    
-         --split at the index given
-   where (pre, post) = splitAt sDim (dim tensor)
+removeDim sDim tensor = 
+   let 
+      --split at the index given
+      (pre, post) = splitAt sDim (dim tensor)
          
-         --the dimension to drop will be the first of "post"
-         newDims     = pre ++ (tail post)
+      --the dimension to drop will be the first of "post"
+      newDims     = pre ++ (tail post)
+   in
+      fromDim newDims
 
 {- Permutes the dimensions of the tensor -}
 permute :: [Int] -> ETensor -> Flow
-permute order tensor = wrt $ tensor >>= (permuteChk order)
-   where wrt = record $ Permute order
+permute order tensor = 
+   let
+      wrt = record $ Permute order
+   in
+      wrt $ tensor >>= (permuteChk order)
 
 {- Applies a permutation of the tensors dimension -}
 permuteChk :: [Int] -> Tensor -> ETensor
@@ -237,7 +248,8 @@ permuteChk order tensor
 
 {- Reshapes the given tensor -}
 reshape :: [Dim] -> ETensor -> Flow
-reshape newShape tensor = record (Reshape newShape) $ tensor >>= (reshapeChk newShape)
+reshape newShape tensor = 
+   record (Reshape newShape) $ tensor >>= (reshapeChk newShape)
 
 {- Ensures that the same number of elements exist between the input
 and output tensors-}
@@ -264,19 +276,25 @@ input dims = start $ fromDim dims
 
 {- Initialize the network flow -}
 start :: Tensor -> Flow
-start ten = writer (Right ten, [(Input dims, dims)])
-   where dims = dim ten
+start ten = 
+   let
+      dims = dim ten
+   in
+      writer (Right ten, [(Input dims, dims)])
 
-{- Convert the flow of the network into a String to be printed -}
+{- Convert the flow of the network into a String, either a summary of the 
+   flow with dimensions or an error message -}
 check :: Flow -> String
-check flow = printf "Final Output: %s\n\n%-60s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
-
-   where (output, layers)    = runWriter flow
-         fmtLayers           = unlines $ map fmtPair layers
-         fmtOut              = case output of
-                                  Right tensor -> show tensor
-                                  Left err      -> err
-         fmtPair (layer, ds) =  printf "%-60s %s" (show layer) (fmtDim ds)
+check flow = 
+   let
+      (output, layers)    = runWriter flow
+      fmtLayers           = unlines $ map fmtPair layers
+      fmtOut              = case output of
+                               Right tensor -> show tensor
+                               Left err      -> err
+      fmtPair (layer, ds) =  printf "%-60s %s" (show layer) (fmtDim ds)
+   in
+      printf "Final Output: %s\n\n%-60s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
 
 {- Format the dimensions of the tensor -}
 fmtDim :: [Dim] -> String
