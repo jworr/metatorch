@@ -237,7 +237,7 @@ generateTraining prefix =
                 tab 3 "pred = self(inst.cuda())",
                 tab 3 "loss = self.loss_function(pred, target.cuda())",
                 tab 3 "total_loss += loss.cpu().data.item()",
-                tab 3 "loss.backwards()",
+                tab 3 "loss.backward()",
                 tab 3 "optim.step()",
                 tab 3 "",
                 tab 2 "print(\" Loss: %7.2f |\" % (total_loss / len(train_data)), end=\"\") ",
