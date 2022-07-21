@@ -37,15 +37,14 @@ generate spaces network = case model network of
             forward    = generateForward prefix attributes names
 
             --training method
-            train      = case find isLoss layers of
-                           Just lossLayer -> generateTraining prefix lossLayer
-                           _              -> ""
+            train = generateTraining prefix
 
             --all the code
             code       = ["from random import shuffle",
                           "from time import time",
                           "import torch as t",
                           "import torch.nn as nn",
+                          "from torch.optim import Adam",
                           "",
                           "class Model(nn.Module):",
                           "",
@@ -70,8 +69,17 @@ model flow =
 generateInit :: String -> [String] -> LayerNames -> String
 generateInit prefix vars namedLayers = 
    let 
+      --check if there is a loss layer
+      lossFun = find (isLoss . fst) namedLayers
+
       --declaration of the constructor
-      initDecl     = printf (prefix ++ "def __init__(self, loss_function, %s):")
+      initDecl     = case lossFun of 
+
+                        -- there is a loss layer, no need for an arg
+                        Just _ -> printf (prefix ++ "def __init__(self, %s):")
+
+                        -- make the loss function an argument
+                        _ -> printf (prefix ++ "def __init__(self, loss_function, %s):")
 
       --function to apply indenting
       indent s     = prefix ++ prefix ++ s
@@ -82,8 +90,6 @@ generateInit prefix vars namedLayers =
       --call to super constructor
       super        = indent "super().__init__()\n"
 
-      --loss function
-      loss         = indent "self.loss_function = loss_function"
 
       --declare all the attributes like hidden layer size
       attrDecls    = map (indent . genAttrDecl) vars
@@ -91,7 +97,7 @@ generateInit prefix vars namedLayers =
       --declare all the layers
       layerDecls   = map (indent . (uncurry genDecl)) namedLayers
    in
-      unlines $ [initDecl args, super, loss] ++ attrDecls ++ layerDecls
+      unlines $ [initDecl args, super] ++ attrDecls ++ layerDecls
 
 
 {- Creates an attribute per each dimension variable -}
@@ -182,6 +188,8 @@ declare (Activation name) = printf "nn.%s()" name
 declare (Linear inF outF) = 
    printf "nn.Linear(%s, %s)" (show inF) (show outF)
 
+declare (CELoss _) = "nn.CrossEntropyLoss()"
+
 declare _ = ""
 
 {- Generates the line that unpacks the size of the given tensor -}
@@ -199,17 +207,19 @@ genSize (Input dims) =
 genSize _ = ""
 
 {- Generates the model's training method -}
-generateTraining :: String -> Layer -> String
-generateTraining prefix _ =
+generateTraining :: String -> String
+generateTraining prefix =
    let
       --indents the line
       tab n s = concat (replicate n prefix) ++ s
    in
       unlines $ map (tab 1) 
-               ["def fit(self, train_data, dev_data, num_epochs, optim):",
+               ["def fit(self, train_data, dev_data, num_epochs, learning_rate, reg):",
                 tab 1 "\"\"\"",
                 tab 1 "Trains the model, the data collections are iterables of (inst, target) tuples",
                 tab 1 "\"\"\"",
+                tab 1 "params = [p for p in self.parameters() if p.requires_grad]",
+                tab 1 "optim = Adam(params, learning_rate, weight_decay=reg)",
                 tab 1 "self.train()",
                 tab 1 "epoch = 1",
                 tab 1 "",
@@ -224,9 +234,9 @@ generateTraining prefix _ =
                 tab 2 "# for each training example, make a prediction, measure the loss, and update",
                 tab 2 "for inst, target in train_data:",
                 tab 3 "self.zero_grad()",
-                tab 3 "pred = self(inst)",
-                tab 3 "loss = self.loss_function(pred, target)",
-                tab 3 "total_loss += loss.data.item()",
+                tab 3 "pred = self(inst.cuda())",
+                tab 3 "loss = self.loss_function(pred, target.cuda())",
+                tab 3 "total_loss += loss.cpu().data.item()",
                 tab 3 "loss.backwards()",
                 tab 3 "optim.step()",
                 tab 3 "",
@@ -262,7 +272,10 @@ makeName counts layer =
                  Just count -> count
                  _          -> 0
 
-      name = lower $ layerType layer
+      name = if isLoss layer then
+               "loss_function"
+            else
+               lower $ layerType layer
    in
       if cnt > 1 then (printf "%s%d" name cnt) else name
 
@@ -293,7 +306,6 @@ isFunctional (Squeeze _) = True
 isFunctional (Reshape _) = True
 isFunctional (Input _)   = True
 isFunctional (Broken _)  = True
-isFunctional (CELoss _)  = True
 isFunctional _           = False
 
 {- Determines if the layer is a loss function or not -}
