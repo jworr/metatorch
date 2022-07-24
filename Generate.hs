@@ -139,9 +139,10 @@ genCall _ (Squeeze index) _              = printf "tensor = tensor.squeeze(%d)" 
 genCall attrs (Reshape dims) _           = 
    let
       --determines if the dimensions has any class attribute variables
-      hasAttrs d = any (\ v -> v `elem` attrs) (dimVars d)
-      fmtDim ds  = intercalate ", " $ map (show . fmtVar) ds
-      fmtVar v   = if hasAttrs v then addPrefix "self." v else v
+      hasAttrs d    = any (\ v -> v `elem` attrs) (dimVars d)
+      fmtDim (d:[]) = show (fmtVar d) ++ ","
+      fmtDim ds     = intercalate ", " $ map (show . fmtVar) ds
+      fmtVar v      = if hasAttrs v then addPrefix "self." v else v
    in
       printf "tensor = t.reshape(tensor, (%s))" (fmtDim dims)
 
@@ -225,7 +226,7 @@ generateTraining prefix =
                 tab 1 "",
                 tab 1 "# for a fixed number of epochs, train the model",
                 tab 1 "while epoch < num_epochs:",
-                tab 2 "print(\"Epoch %d\" % epoch, end=\"\")",
+                tab 2 "print(\"Epoch %d |\" % epoch, end=\"\")",
                 tab 2 "start_time = time()",
                 tab 2 "total_loss = 0.0",
                 tab 2 "",
