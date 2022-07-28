@@ -30,12 +30,12 @@ module Dim
 )
 where
 
-import Data.List (intercalate)
+import Data.List (intercalate, sort)
 import Text.Printf (printf)
-import Data.List (sort)
 
 --TODO/NOTE: addition and subtraction is NOT commutative!!!!
 
+--numerator, denominator, sum of expressions
 data Dim = Dim Int Int [Sum]
          deriving Ord
 
@@ -155,4 +155,7 @@ add left right
 
 {- divide a dimension by a constant factor -}
 divBy :: Dim -> Int -> Dim
+divBy (Dim value 1 []) divisor
+   | value `mod` divisor == 0 = Dim (value `div` divisor) 1 []
+   | otherwise                = Dim value divisor []
 divBy (Dim num denom vars) divisor = Dim num (denom * divisor) vars
