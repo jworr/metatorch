@@ -128,6 +128,7 @@ genCall _ (RNN _ _ _ _) name             = printf "tensor, _ = self.%s(tensor)" 
 genCall _ (RNNLast "LSTM" _ _ _ _) name  = printf "_, (tensor, _) = self.%s(tensor)" name
 genCall _ (RNNLast _ _ _ _ _) name       = printf "_, tensor = self.%s(tensor)" name
 genCall _ (Average index) _              = printf "tensor = t.mean(tensor, %d)" index
+genCall _ (Max index) _                  = printf "tensor = t.max(tensor, %d)[0]" index
 genCall _ (Permute dims) _               = 
    let
       --note this assumes a constant or single variable dimension
@@ -290,6 +291,7 @@ layerType (Pool1d name _ _)       = printf "%s1d" name
 layerType (Conv2d _ _ _ _)        = "Conv2d"
 layerType (Pool2d name _ _)       = printf "%s2d" name
 layerType (Average _)             = "mean"
+layerType (Max _)                 = "max"
 layerType (Permute _)             = "permute"
 layerType (Squeeze _)             = "squeeze"
 layerType (Reshape _)             = "reshape"
@@ -302,6 +304,7 @@ layerType (Broken _)              = "Broken"
 {- Determines if the layer is functional or not -}
 isFunctional :: Layer -> Bool
 isFunctional (Average _) = True
+isFunctional (Max _)     = True
 isFunctional (Permute _) = True
 isFunctional (Squeeze _) = True
 isFunctional (Reshape _) = True

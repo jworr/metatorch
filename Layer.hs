@@ -29,12 +29,13 @@ module Layer (
    permute,
    squeeze,
    reshape,
-   mean 
+   mean,
+   maximize
 )
 where
 
 import Control.Monad.Writer
-import Data.List
+import Data.List (map, intercalate)
 import Text.Printf (printf)
 
 import Dim (Dim, lit, multiplyAll)
@@ -62,6 +63,7 @@ data Layer = Linear Dim Dim
            | Pool2d String Int Int
 
            | Average Int
+           | Max Int
            | Permute [Int] 
            | Squeeze Int
            | Reshape [Dim]
@@ -93,7 +95,8 @@ instance Show Layer where
    show (Reshape ds)      = printf "Reshape: %s" (fmtDim ds)
    show (Pool1d name d s) = printf "%s-pooling-1d %d %d" name d s
    show (Pool2d name d s) = printf "%s-pooling-2d %d %d" name d s
-   show (Average d)       = printf "Average %d" d
+   show (Average d)       = printf "Mean %d" d
+   show (Max d)           = printf "Max %d" d
    show (Input d)         = printf "Input %s" (fmtDim d)
 
 
@@ -199,6 +202,19 @@ squeezeChk sDim tensor
          isOne = (dims !! sDim) == lit 1
          msg = printf "Squeeze: cannot remove dimension %d from %s" sDim (fmtDim dims)
 
+{- Find the maximum of a dimension -}
+maximize :: Int -> ETensor -> Flow
+maximize maxDim tensor = record (Max maxDim) $ tensor >>= (maxChk maxDim)
+
+{- Checks that the max operation can be applied -}
+maxChk :: Int -> Tensor -> ETensor
+maxChk maxDim tensor
+   | maxDim < (length dims) && maxDim >= 0 = Right $ removeDim maxDim tensor
+   | otherwise                             = Left $ msg
+  
+  where dims = dim tensor
+        msg = printf "Max: cannot remove dimension %d from %s" maxDim (fmtDim dims)
+
 {- Average out a dimension -}
 mean :: Int -> ETensor -> Flow
 mean avgDim tensor = record (Average avgDim) $ tensor >>= (meanChk avgDim)
@@ -210,7 +226,7 @@ meanChk avgDim tensor
    | otherwise                             = Left $ msg
   
   where dims = dim tensor
-        msg = printf "Average: cannot remove dimension %d from %s" avgDim (fmtDim dims)
+        msg = printf "Mean: cannot remove dimension %d from %s" avgDim (fmtDim dims)
 
 {- Remove the dimension from the tensor -}
 removeDim :: Int -> Tensor -> Tensor
