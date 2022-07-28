@@ -64,10 +64,10 @@ batchToken = input [n, l, k]
 --for each sequence in the batch
 conv :: Flow
 conv = input [n, k, l, w]
-     >>= conv2d k h 5 1
-     >>= maxPool2d h 2 2
-     >>= conv2d h h 3 1
-     >>= maxPool2d h 2 2
+     >>= conv2d 5 1 2 k h
+     >>= maxPool2d 2 2 1 h
+     >>= conv2d 3 1 1 h h
+     >>= maxPool2d 2 2 1 h
      >>= mean 3
      >>= mean 2
      >>= linear h _4

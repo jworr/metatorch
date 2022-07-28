@@ -168,23 +168,23 @@ declare (RNNLast name inFeat outFeat bi batch) =
    in
       printf py name (show inFeat) (show outFeat) (show bi) (show batch)
 
-declare (Conv1d inF outF window stride) = 
+declare (Conv1d inF outF window stride pad) = 
    let
-      py = "nn.Conv1d(%s, %s, %d, %d)" 
+      py = "nn.Conv1d(%s, %s, %d, %d, %d)" 
    in
-      printf py (show inF) (show outF) window stride
+      printf py (show inF) (show outF) window stride pad
 
-declare (Pool1d name window stride) = 
-   printf "nn.%s1d(%d, %d)" name window stride
+declare (Pool1d name window stride pad) = 
+   printf "nn.%s1d(%d, %d, %d)" name window stride pad
 
-declare (Conv2d inF outF window stride) = 
+declare (Conv2d inF outF window stride pad) = 
    let
-      py = "nn.Conv2d(%s, %s, %d, %d)"
+      py = "nn.Conv2d(%s, %s, %d, %d, %d)"
    in
-      printf py (show inF) (show outF) window stride
+      printf py (show inF) (show outF) window stride pad
 
-declare (Pool2d name window stride) = 
-   printf "nn.%s2d(%d, %d)" name window stride
+declare (Pool2d name window stride pad) = 
+   printf "nn.%s2d(%d, %d, %d)" name window stride pad
 
 declare (Activation name) = printf "nn.%s()" name
 declare (Linear inF outF) = 
@@ -286,10 +286,10 @@ layerType :: Layer -> LayerType
 layerType (Linear _ _)            = "Linear"
 layerType (RNN name _ _ _)        = name
 layerType (RNNLast name _ _ _ _)  = name
-layerType (Conv1d _ _ _ _)        = "Conv1d"
-layerType (Pool1d name _ _)       = printf "%s1d" name
-layerType (Conv2d _ _ _ _)        = "Conv2d"
-layerType (Pool2d name _ _)       = printf "%s2d" name
+layerType (Conv1d _ _ _ _ _)      = "Conv1d"
+layerType (Pool1d name _ _ _)     = printf "%s1d" name
+layerType (Conv2d _ _ _ _ _)      = "Conv2d"
+layerType (Pool2d name _ _ _)     = printf "%s2d" name
 layerType (Average _)             = "mean"
 layerType (Max _)                 = "max"
 layerType (Permute _)             = "permute"
@@ -329,8 +329,8 @@ layerDims :: Layer -> [Dim]
 layerDims (Linear inDim outDim)                 = [inDim, outDim]
 layerDims (RNN _ inDim outDim _)                = [inDim, outDim]
 layerDims (RNNLast _ inDim outDim _ _)          = [inDim, outDim]
-layerDims (Conv1d inDim outDim _ _)             = [inDim, outDim]
-layerDims (Conv2d inDim outDim _ _)             = [inDim, outDim]
+layerDims (Conv1d inDim outDim _ _ _)           = [inDim, outDim]
+layerDims (Conv2d inDim outDim _ _ _)           = [inDim, outDim]
 layerDims (Reshape dims)                        = dims
 layerDims (CELoss dims)                         = [dims]
 layerDims (Input dims)                          = dims

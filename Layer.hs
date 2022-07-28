@@ -50,17 +50,17 @@ data Layer = Linear Dim Dim
            --name, input channels, hidden layer, bi, batch
            | RNNLast String Dim Dim Bool Bool
            
-           --input channels, channels, window (kernel) size, stride
-           | Conv1d Dim Dim Int Int 
+           --input channels, channels, window (kernel) size, stride, pad
+           | Conv1d Dim Dim Int Int Int
 
-           --name, window, stride
-           | Pool1d String Int Int
+           --name, window, stride, pad
+           | Pool1d String Int Int Int
 
-           --channels, window size, stride
-           | Conv2d Dim Dim Int Int  
+           --channels, window size, stride, pad
+           | Conv2d Dim Dim Int Int Int
 
-           --name, window, stride
-           | Pool2d String Int Int
+           --name, window, stride, pad
+           | Pool2d String Int Int Int
 
            | Average Int
            | Max Int
@@ -84,20 +84,20 @@ instance Show Layer where
    show (RNNLast name i d False True)  = printf "Last %s %s (batch first)" name (fmtTrans i d)
    show (RNNLast name i d True True)   = printf "Last-bi-%s %s (batch first)" name (fmtTrans i d)
 
-   show (Conv1d i d w s)    = printf "Conv1D %s, window %d, stride %d" (fmtTrans i d) w s
-   show (Conv2d i d w s)    = printf "Conv2D %s, window %d, stride %d" (fmtTrans i d) w s
+   show (Conv1d i d w s p)    = printf "Conv1D %s, window %d, stride %d, pad %d" (fmtTrans i d) w s p
+   show (Conv2d i d w s p)    = printf "Conv2D %s, window %d, stride %d, pad %d" (fmtTrans i d) w s p
 
-   show (Activation name) = name
-   show (CELoss d)        = printf "Cross Entropy %s" (show d)
-   show (Broken msg)      = printf "Error: %s" msg
-   show (Permute ord)     = printf "Permute: %s" (intercalate "," $ map show ord)
-   show (Squeeze d)       = printf "Squeeze: %d" d
-   show (Reshape ds)      = printf "Reshape: %s" (fmtDim ds)
-   show (Pool1d name d s) = printf "%s-pooling-1d %d %d" name d s
-   show (Pool2d name d s) = printf "%s-pooling-2d %d %d" name d s
-   show (Average d)       = printf "Mean %d" d
-   show (Max d)           = printf "Max %d" d
-   show (Input d)         = printf "Input %s" (fmtDim d)
+   show (Activation name)   = name
+   show (CELoss d)          = printf "Cross Entropy %s" (show d)
+   show (Broken msg)        = printf "Error: %s" msg
+   show (Permute ord)       = printf "Permute: %s" (intercalate "," $ map show ord)
+   show (Squeeze d)         = printf "Squeeze: %d" d
+   show (Reshape ds)        = printf "Reshape: %s" (fmtDim ds)
+   show (Pool1d name d s p) = printf "%s-pooling-1d %d %d %d" name d s p
+   show (Pool2d name d s p) = printf "%s-pooling-2d %d %d %d" name d s p
+   show (Average d)         = printf "Mean %d" d
+   show (Max d)             = printf "Max %d" d
+   show (Input d)           = printf "Input %s" (fmtDim d)
 
 
 fmtTrans :: Dim -> Dim -> String
