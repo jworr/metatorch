@@ -71,6 +71,7 @@ data Layer = Linear Dim Dim
            | CELoss Dim
            | Input [Dim]
            | Broken String
+           | Sequential [Layer]
            deriving (Ord, Eq)
 
 instance Show Layer where
@@ -98,6 +99,7 @@ instance Show Layer where
    show (Average d)         = printf "Mean %d" d
    show (Max d)             = printf "Max %d" d
    show (Input d)           = printf "Input %s" (fmtDim d)
+   show (Sequential l)      = printf "Sequential (%d layers)" (length l)
 
 
 fmtTrans :: Dim -> Dim -> String

@@ -21,7 +21,7 @@ generate spaces network = case model network of
    Left  err    -> err
    Right layers -> unlines code
    
-      where names      = assignNames layers
+      where names      = assignNames $ groupBlocks layers
             prefix     = if spaces then spaceIndent else tabIndent
 
             --all the layers that need to be declared
@@ -94,8 +94,11 @@ generateInit prefix vars namedLayers =
       --declare all the attributes like hidden layer size
       attrDecls    = map (indent . genAttrDecl) vars
 
+      --triple indentation for sequential layers
+      triple       = prefix ++ prefix ++ prefix
+
       --declare all the layers
-      layerDecls   = map (indent . (uncurry genDecl)) namedLayers
+      layerDecls   = map (indent . (uncurry (genDecl triple))) namedLayers
    in
       unlines $ [initDecl args, super] ++ attrDecls ++ layerDecls
 
@@ -151,48 +154,55 @@ genCall _ _ name                         = printf "tensor = self.%s(tensor)" nam
 
 
 {- Generates a layer's declaration i.e. inside the class constructor -}
-genDecl :: Layer -> String -> String
-genDecl layer name = printf "self.%s = %s" name (declare layer)
+genDecl :: String -> Layer -> String -> String
+genDecl prefix layer name = printf "self.%s = %s" name (declare prefix layer)
   
 {- Generates the Pytorch object instantiation -}
-declare :: Layer -> String
-declare  (RNN name inFeat outFeat bi) = 
+declare :: String -> Layer -> String
+declare _ (RNN name inFeat outFeat bi) = 
    let
       py = "nn.%s(%s, %s, bidirectional=%s)"
    in
       printf py name (show inFeat) (show outFeat) (show bi)
 
-declare (RNNLast name inFeat outFeat bi batch) = 
+declare _ (RNNLast name inFeat outFeat bi batch) = 
    let
       py = "nn.%s(%s, %s, bidirectional=%s, batch_first=%s)"
    in
       printf py name (show inFeat) (show outFeat) (show bi) (show batch)
 
-declare (Conv1d inF outF window stride pad) = 
+declare _ (Conv1d inF outF window stride pad) = 
    let
       py = "nn.Conv1d(%s, %s, %d, %d, %d)" 
    in
       printf py (show inF) (show outF) window stride pad
 
-declare (Pool1d name window stride pad) = 
+declare _ (Pool1d name window stride pad) = 
    printf "nn.%s1d(%d, %d, %d)" name window stride pad
 
-declare (Conv2d inF outF window stride pad) = 
+declare _ (Conv2d inF outF window stride pad) = 
    let
       py = "nn.Conv2d(%s, %s, %d, %d, %d)"
    in
       printf py (show inF) (show outF) window stride pad
 
-declare (Pool2d name window stride pad) = 
+declare _ (Pool2d name window stride pad) = 
    printf "nn.%s2d(%d, %d, %d)" name window stride pad
 
-declare (Activation name) = printf "nn.%s()" name
-declare (Linear inF outF) = 
+declare _ (Activation name) = printf "nn.%s()" name
+declare _ (Linear inF outF) = 
    printf "nn.Linear(%s, %s)" (show inF) (show outF)
 
-declare (CELoss _) = "nn.CrossEntropyLoss()"
+declare _ (CELoss _) = "nn.CrossEntropyLoss()"
 
-declare _ = ""
+declare prefix (Sequential layers) = 
+   let
+      names = map (declare prefix) layers
+      args  = intercalate (",\n" ++ prefix) names
+   in
+      printf "nn.Sequential(%s)" args
+
+declare _ _ = ""
 
 {- Generates the line that unpacks the size of the given tensor -}
 genSize :: Layer -> String
@@ -281,7 +291,7 @@ makeName counts layer =
    in
       if cnt > 1 then (printf "%s%d" name cnt) else name
 
-{- Produces the layer's type -}
+{- Produces the layer's type, i.e. a name of the layer and its type -}
 layerType :: Layer -> LayerType
 layerType (Linear _ _)            = "Linear"
 layerType (RNN name _ _ _)        = name
@@ -299,7 +309,25 @@ layerType (Activation name)       = name
 layerType (CELoss _)              = "CrossEntropyLoss"
 layerType (Input _)               = "Input"
 layerType (Broken _)              = "Broken"
+layerType (Sequential _)          = "Sequential"
 
+
+{- Groups up the layers into Sequential blocks -}
+groupBlocks :: Model -> Model
+groupBlocks = 
+   let
+      bothFunctional l k = (isFunctional l) == (isFunctional k)
+   in
+      concatMap makeSequential . groupBy bothFunctional
+
+
+{- Makes a seqential layer, assume all the layers in the model block
+are functional or not -}
+makeSequential :: Model -> Model
+makeSequential [] = []
+makeSequential (first:rest)
+   | isFunctional first = (first:rest)
+   | otherwise          = [Sequential (first:rest)]
 
 {- Determines if the layer is functional or not -}
 isFunctional :: Layer -> Bool
