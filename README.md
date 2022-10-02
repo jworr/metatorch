@@ -146,5 +146,7 @@ The developer can followup by changing `linear h _4` to `linear h2 _4`.
 * Documentation!
 * More loss functions such as MSE
 * Multi-layer option for RNNs
+* Add Transformer Layers
+* Generate cleaner code via grouping layers in sequential containers
 * `join` function to connect two separate network flows
 * Arithmetic for dimensions is fragile, needs improvement.
