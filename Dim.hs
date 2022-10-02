@@ -154,8 +154,7 @@ add left right
          rVars = getVars right
 
 {- divide a dimension by a constant factor -}
+--Note int division is used because this is what pytorch appears to do
 divBy :: Dim -> Int -> Dim
-divBy (Dim value 1 []) divisor
-   | value `mod` divisor == 0 = Dim (value `div` divisor) 1 []
-   | otherwise                = Dim value divisor []
+divBy (Dim value 1 []) divisor = Dim (value `div` divisor) 1 []
 divBy (Dim num denom vars) divisor = Dim num (denom * divisor) vars
