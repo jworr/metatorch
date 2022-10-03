@@ -28,7 +28,7 @@ generate spaces network = case model network of
             declLayers = filter (not . isFunctional . fst) names
 
             --get all the unique variable names from all the layers
-            attributes = nub . concatMap dimVars . concatMap layerDims $ map fst declLayers
+            attributes = nub . concatMap dimVars $ concatMap layerDims layers
 
             --constructor for the model
             construct  = generateInit prefix attributes declLayers
@@ -212,9 +212,13 @@ genSize (Input dims) =
          | hasVars di   = show di   --use the variable name
          | otherwise    = "_"       --constants are replaced with _
 
+      needsSize = any hasVars dims
       assignment = intercalate ", " (map genInput dims)
    in
-      printf "%s = tensor.size()" assignment
+      if needsSize then
+         printf "%s = tensor.size()" assignment
+      else
+         ""
 
 genSize _ = ""
 
