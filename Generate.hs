@@ -316,7 +316,8 @@ layerType (Sequential _)          = "Sequential"
 groupBlocks :: Model -> Model
 groupBlocks = 
    let
-      bothFunctional l k = (isFunctional l) == (isFunctional k)
+      isReg layer = not (isFunctional layer) && not (isLoss layer)
+      bothFunctional l k = (isReg l) == (isReg k)
    in
       concatMap makeSequential . groupBy bothFunctional
 
@@ -324,10 +325,11 @@ groupBlocks =
 {- Makes a seqential layer, assume all the layers in the model block
 are functional or not -}
 makeSequential :: Model -> Model
-makeSequential [] = []
+makeSequential []           = []
+makeSequential [single]     = [single]
 makeSequential (first:rest)
-   | isFunctional first = (first:rest)
-   | otherwise          = [Sequential (first:rest)]
+   | isFunctional first     = (first:rest)
+   | otherwise              = [Sequential (first:rest)]
 
 {- Determines if the layer is functional or not -}
 isFunctional :: Layer -> Bool
