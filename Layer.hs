@@ -38,7 +38,8 @@ import Control.Monad.Writer
 import Data.List (map, intercalate)
 import Text.Printf (printf)
 
-import Dim (Dim, lit, multiplyAll)
+import Dim (Dim, lit, multiplyAll, multiply, addAll)
+import qualified Dim as D
 import Tensor (Tensor, ETensor, dim, fromDim, isScalar)
 
 
@@ -311,9 +312,91 @@ check flow =
                                Right tensor -> show tensor
                                Left err      -> err
       fmtPair (layer, ds) =  printf "%-60s %s" (show layer) (fmtDim ds)
+      numParams           = allParameters (map fst layers)
    in
-      printf "Final Output: %s\n\n%-60s %s\n%s" fmtOut "Layers:" "Output Dimensions:" fmtLayers
+      unlines ["Final Output: " ++ fmtOut,
+               printf "Number of parameters: %s" (show numParams),
+               "",
+               printf "%-60s %s" "Layers:" "Output Dimensions",
+               fmtLayers
+              ]
 
 {- Format the dimensions of the tensor -}
 fmtDim :: [Dim] -> String
 fmtDim dims = intercalate "x" (map show dims)
+
+
+{- Returns the number of parameters across all the layers -}
+allParameters :: [Layer] -> Dim
+allParameters = foldr D.add (lit 0) . map parameters
+
+--NOTE: the use of strings here is gross, add RNN data type
+{- Returns the number of parameters in the layer -}
+parameters :: Layer -> Dim
+
+--linear
+parameters (Linear inDim outDim) = multiply inDim outDim
+
+--'Vanilla' RNN
+parameters (RNN "RNN" inDim hiddenDim bi) = 
+   let
+      input  = multiply inDim hiddenDim
+      hidden = multiply hiddenDim hiddenDim
+      total  = addAll [input, hidden, hiddenDim, hiddenDim]
+   in
+      if bi then multiply (lit 2) total else total
+
+--GRU
+parameters (RNN "GRU" inDim hiddenDim bi) = 
+   let
+      --3 input transformations
+      inGates = multiplyAll [(lit 3), inDim, hiddenDim]
+
+      --3 hidden "memory" transformations
+      memGates = multiplyAll [(lit 3), hiddenDim, hiddenDim]
+
+      --3 bias per input and memory
+      bias = multiply (lit 6) hiddenDim
+
+      total = addAll [inGates, memGates, bias] 
+   in
+      if bi then multiply (lit 2) total else total 
+
+--LSTM
+parameters (RNN "LSTM" inDim hiddenDim bi) =
+   let
+      --4 input transformations
+      inGates = multiplyAll [(lit 4), inDim, hiddenDim]
+
+      --4 hidden "memory" transformations
+      memGates = multiplyAll [(lit 4), hiddenDim, hiddenDim]
+
+      --4 bias per input and memory
+      bias = multiply (lit 8) hiddenDim
+
+      total = addAll [inGates, memGates, bias] 
+   in
+      if bi then multiply (lit 2) total else total 
+      
+
+--Layer that produces last vector, same as RNN
+parameters (RNNLast name inDim hiddenDim bi _) = parameters (RNN name inDim hiddenDim bi)
+
+--1D convolution
+parameters (Conv1d inChannels outChannels kernelSize _ _) = 
+   let
+      trans = multiplyAll [inChannels, outChannels, lit kernelSize]
+   in
+      addAll [trans, outChannels]
+
+--2D convolution
+parameters (Conv2d inChannels outChannels kernelSize _ _) = 
+   let
+      trans = multiplyAll [inChannels, outChannels, lit kernelSize, lit kernelSize]
+   in
+      addAll [trans, outChannels]
+
+--Sequential layer, add up all sub layers
+parameters (Sequential layers) = foldr D.add (lit 0) (map parameters layers)
+
+parameters _ = lit 0

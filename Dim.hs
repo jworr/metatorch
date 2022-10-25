@@ -23,6 +23,7 @@ module Dim
    multiplyAll,
    sub,
    add,
+   addAll,
    divBy,
    hasVars,
    dimVars,
@@ -116,6 +117,10 @@ multiply (Dim x xd vars) (Dim y yd others) = Dim (x * y) (xd * yd) (vars ++ othe
 multiplyAll :: [Dim] -> Dim
 multiplyAll = foldr multiply (lit 1)
 
+{- Adds all the dimensions -}
+addAll :: [Dim] -> Dim
+addAll = foldr add (lit 0)
+
 {- Subtract two dimensions -}
 sub :: Dim -> Dim -> Dim
 sub (Dim 1 1 [Diff x (Dim c 1 [])]) (Dim k 1 []) = Dim 1 1 [Diff x (lit $ c + k)]
@@ -137,6 +142,11 @@ sub left right
 
 {- Adds two dimensions -}
 add :: Dim -> Dim -> Dim
+
+--do nothing with zeros
+add (Dim 0 _ _) other = other
+add other (Dim 0 _ _) = other
+
 add (Dim 1 1 [Sum x (Dim c 1 [])]) (Dim k 1 []) = Dim 1 1 [Sum x (lit $ c + k)]
 
 add (Dim 1 1 [Diff x (Dim c 1 [])]) (Dim k 1 [])
