@@ -14,7 +14,7 @@
    limitations under the License.
 -}
 
-module Tensor
+module Metatorch.Tensor
 (
    Tensor(..),
    ETensor,
@@ -24,7 +24,7 @@ module Tensor
 )
 where
 
-import Dim (Dim)
+import Metatorch.Dim (Dim)
 
 data Tensor = Scalar
             | Vector Dim

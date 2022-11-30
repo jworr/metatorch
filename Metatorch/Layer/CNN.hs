@@ -14,7 +14,7 @@
    limitations under the License.
 -}
 
-module Layer.CNN
+module Metatorch.Layer.CNN
 (
    conv1d,
    maxPool1d,
@@ -27,9 +27,9 @@ where
 
 import Text.Printf (printf)
 
-import Tensor (Tensor, ETensor, dim, fromDim)
-import Layer(Layer(..), Flow, record)
-import Dim (Dim, add, sub, divBy, lit, multiply)
+import Metatorch.Tensor (Tensor, ETensor, dim, fromDim)
+import Metatorch.Layer(Layer(..), Flow, record)
+import Metatorch.Dim (Dim, add, sub, divBy, lit, multiply)
 
 {- Applies a 1D Convolutional layer -}
 conv1d :: Int -> Int -> Int -> Dim -> Dim -> ETensor -> Flow

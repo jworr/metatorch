@@ -14,7 +14,7 @@
    limitations under the License.
 -}
 
-module Layer (
+module Metatorch.Layer (
    Layer(..),
    Flow,
    start,
@@ -38,9 +38,9 @@ import Control.Monad.Writer
 import Data.List (map, intercalate)
 import Text.Printf (printf)
 
-import Dim (Dim, lit, multiplyAll, multiply, addAll)
-import qualified Dim as D
-import Tensor (Tensor, ETensor, dim, fromDim, isScalar)
+import Metatorch.Dim (Dim, lit, multiplyAll, multiply, addAll)
+import qualified Metatorch.Dim as D
+import Metatorch.Tensor (Tensor, ETensor, dim, fromDim, isScalar)
 
 
 data Layer = Linear Dim Dim

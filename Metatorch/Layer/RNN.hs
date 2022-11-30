@@ -14,7 +14,7 @@
    limitations under the License.
 -}
 
-module Layer.RNN
+module Metatorch.Layer.RNN
 (
    rnn,
    lstm,
@@ -33,9 +33,9 @@ where
 
 import Text.Printf (printf)
 
-import Tensor (Tensor, ETensor, dim, fromDim)
-import Layer(Layer(..), Flow, record)
-import Dim (Dim, multiply, lit)
+import Metatorch.Tensor (Tensor, ETensor, dim, fromDim)
+import Metatorch.Layer(Layer(..), Flow, record)
+import Metatorch.Dim (Dim, multiply, lit)
 
 rnn :: Dim -> Dim -> ETensor -> Flow
 rnn  = genRnn "RNN"

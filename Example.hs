@@ -14,12 +14,10 @@
    limitations under the License.
 -}
 
-import Tensor (Tensor(..))
-import Layer (Flow, input, relu, linear, crossEnt, check, permute, reshape, mean)
-import Layer.RNN (lstm, gruBi, lstmBiLast)
-import Layer.CNN (conv2d, maxPool2d)
-import Dim (lit, var, multiply, sub)
-import Generate (generate)
+import Metatorch (Tensor(..), Flow, input, relu, linear, crossEnt, 
+   check, permute, reshape, mean, lstm, gruBi, lstmBiLast, conv2d, maxPool2d, lit, var)
+import Metatorch.Dim (multiply, sub)
+import Metatorch.Generate (generate)
 
 --define variables and constants
 l = var "l"

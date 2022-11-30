@@ -1,4 +1,4 @@
-module Generate (generate) where
+module Metatorch.Generate (generate) where
 
 import Control.Monad.Writer
 
@@ -7,8 +7,8 @@ import qualified Data.Map.Strict as M
 import Data.Char (toLower)
 import Data.List
 
-import Layer (Layer(..), Flow)
-import Dim (Dim, dimVars, hasVars, addPrefix)
+import Metatorch.Layer (Layer(..), Flow)
+import Metatorch.Dim (Dim, dimVars, hasVars, addPrefix)
 
 type LayerNames = [(Layer, String)]
 type LayerCount = M.Map LayerType Int

@@ -14,7 +14,7 @@
    limitations under the License.
 -}
 
-module Dim
+module Metatorch.Dim
 (
    Dim,
    lit,
