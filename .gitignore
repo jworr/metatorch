@@ -1,5 +1,10 @@
 *.swp
-Example
-lib/
+examples/lib/
+examples/CNN
+examples/Batch
+examples/LSTM
+examples/Mlp
+examples/Token
 *.sh
 *.txt
+dist-newstyle/
