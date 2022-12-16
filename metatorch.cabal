@@ -1,0 +1,36 @@
+cabal-version:      2.4
+name:               metatorch
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+-- The license under which the package is released.
+-- license:
+author:             Walker Orr
+maintainer:         walker.orr@gmail.com
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files:
+    CHANGELOG.md
+    README.md
+
+Library 
+
+    exposed-modules: Metatorch
+    ghc-options: -package mtl
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:    base >=4.13, mtl, containers
+    hs-source-dirs:   src
+    default-language: Haskell2010
+    other-modules: Metatorch.Dim, Metatorch.Generate, Metatorch.Layer,
+                   Metatorch.Tensor, Metatorch.Layer.CNN, Metatorch.Layer.RNN

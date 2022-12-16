@@ -17,10 +17,7 @@
 module Metatorch
 (
    --from Metatorch.Dim
-   Dim(..), lit, var, multiply,
-
-   --from Metatorch.Generate
-   generate,
+   Dim(..), lit, var, multiply, sub, add,
 
    --from Metatorch.Layer
    check, Flow, input, relu, linear, crossEnt, permute, reshape, mean, squeeze,
@@ -31,7 +28,6 @@ module Metatorch
    --from Metatorch.Layer.RNN
    rnn, lstm, gru, rnnBi, lstmBi, gruBi, rnnLast, lstmLast, gruLast, rnnBiLast,
    lstmBiLast, gruBiLast,
-
 
    --from Metatorch.Tensor
    Tensor(..),
@@ -50,7 +46,7 @@ import Metatorch.Layer.RNN (rnn, lstm, gru, rnnBi, lstmBi, gruBi, rnnLast,
    lstmLast, gruLast, rnnBiLast, lstmBiLast, gruBiLast)
 
 import Metatorch.Tensor (Tensor(..))
-import Metatorch.Dim (Dim(..), lit, var, multiply)
+import Metatorch.Dim (Dim(..), lit, var, multiply, sub, add)
 
 --constants for CLI
 usage = "[gen [tabs]]"
@@ -63,3 +59,4 @@ evalFlow :: Flow -> [String] -> String
 evalFlow model []              = check model
 evalFlow model ["gen"]         = generate True model
 evalFlow model ["gen", "tabs"] = generate False model
+evalFlow _ _                   = usage
