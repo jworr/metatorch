@@ -14,7 +14,7 @@ Error messages provided by Metatorch are based on the PyTorch documentation and 
 Metatorch is a work in progress and is a proof of concept at this point.
 More Pytorch layers and operations will be implemented in the near future.
 
-Look in `Example.hs` for example models. Compile the example with the following command: `ghc --make Example -outputdir=lib`. Run the example with the command `./Example`
+Look in `examples` for example models. Compile and install the Metatorch library with the command `cabal install --lib`.
 
 Currently, Metatorch has been tested versus Torch version 1.11
 
