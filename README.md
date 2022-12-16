@@ -23,11 +23,7 @@ Currently, Metatorch has been tested versus Torch version 1.11
 A bi-directional LSTM model with linear layer to predict one of 4 classes:
 
 ```haskell
-import Tensor (Tensor(..))
-import Layer (check, input, linear, crossEnt)
-import Generate (generate)
-import Layer.RNN (lstmBi)
-import Dim (lit, var, multiply)
+import Metatorch
 
 n = var "n"
 k = var "k"
@@ -42,49 +38,51 @@ perTokenPred = input [n, k]
              >>= crossEnt _4 (Vector n)
 
 main :: IO ()
-main = do
-   
-   putStrLn $ check perTokenPred
-
-   putStrLn "---Code---"
-
-   putStrLn $ generate True perTokenPred
+main = evalModel perTokenPred 
 ```
 
-The output of `check` is
+Compile the example: `ghc --make Example.hs -outputdir=lib`.
+Running the example `./Example` produces:
 ```
 Final Output: Vector n
+Number of parameters: (2*(8*(k*h) + (16*(h*h) + 16*h)) + 8*h)
 
-Layers:                                                      Output Dimensions:
+Layers:                                                      Output Dimensions
 Input nxk                                                    nxk
 bi-LSTM k -> 2*h                                             nx2*h
 Linear 2*h -> 4                                              nx4
 Cross Entropy 4                                              n
 ```
 
-`generate` produces the following code:
+`./Example gen` produces the following code:
 
 ```Python
 import torch as t
 import torch.nn as nn
+from torch.optim import Adam
 
 class Model(nn.Module):
 
-    def __init__(self, k, h):
+    def __init__(self, n, k, h):
         super().__init__()
 
+        self.n = n
         self.k = k
         self.h = h
-        self.lstm = nn.LSTM(k, 2*h, bidirectional=True)
-        self.linear = nn.Linear(2*h, 4)
+        self.sequential = nn.Sequential(nn.LSTM(k, 2*h, bidirectional=True),
+            nn.Linear(2*h, 4))
+        self.loss_function = nn.CrossEntropyLoss()
 
     def forward(self, tensor):
-
+        """
+        Applies the model to the given tensor
+        """
         n, k = tensor.size()
-        tensor, _ = self.lstm(tensor)
-        tensor = self.linear(tensor)
+        tensor = self.sequential(tensor)
 
         return tensor
+ 
+...
 ```
 
 ### Catching Errors
@@ -95,11 +93,7 @@ However suppose that a mistake was made setting up the model, and the developer 
 The model would look like this (notice that the linear layer takes an input size of "h"):
 
 ```haskell
-import Tensor (Tensor(..))
-import Layer (check, input, linear, crossEnt)
-import Generate (generate)
-import Layer.RNN (lstmBi)
-import Dim (lit, var, multiply)
+import Metatorch
 
 n = var "n"
 k = var "k"
@@ -114,27 +108,19 @@ perTokenPred = input [n, k]
              >>= crossEnt _4 (Vector n)
 
 main :: IO ()
-main = do
-   
-   putStrLn $ check perTokenPred
-
-   putStrLn "---Code---"
-
-   putStrLn $ generate True perTokenPred
+main = evalModel perTokenPred 
 ```
 
 The output of the model will be:
 
 ```
 Final Output:
+Number of parameters: 2*(8*(k*h) + (16*(h*h) + 16*h))
 
-Layers:                                                      Output Dimensions:
+Layers:                                                      Output Dimensions
 Input nxk                                                    nxk
 bi-LSTM k -> 2*h                                             nx2*h
 Error: Linear Layer: last dimension of nx2*h does not match expected input size h
-
----Code---
-Could not generate code:
 ```
 
 The error points out that the linear layer actually received a tensor with since "2h" rather than the expected size "h".
