@@ -14,7 +14,10 @@ Error messages provided by Metatorch are based on the PyTorch documentation and 
 Metatorch is a work in progress and is a proof of concept at this point.
 More Pytorch layers and operations will be implemented in the near future.
 
-Look in `examples` for example models. Compile and install the Metatorch library with the command `cabal install --lib`.
+Look in `examples` directory for example models. 
+Build the project with the command `cabal build` and run a shell in the cabal sandbox with the command `cabal exec bash` (or whatever shell you want).
+After starting the sandbox, compile an example with the following command: `ghc --make LSTM -outputdir=lib`. 
+Run it with the command `./LSTM`
 
 Currently, Metatorch has been tested versus Torch version 1.11
 
@@ -135,3 +138,4 @@ The developer can followup by changing `linear h _4` to `linear h2 _4`.
 * Add Transformer Layers
 * `join` function to connect two separate network flows
 * Arithmetic for dimensions is fragile, needs improvement.
+

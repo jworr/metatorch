@@ -5,6 +5,8 @@ examples/Batch
 examples/LSTM
 examples/Mlp
 examples/Token
+models
 *.sh
 *.txt
+*.py
 dist-newstyle/
