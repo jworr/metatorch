@@ -189,6 +189,9 @@ declare _ (Conv2d inF outF window stride pad) =
 declare _ (Pool2d name window stride pad) = 
    printf "nn.%s2d(%d, %d, %d)" name window stride pad
 
+declare _ (Embedding vocab emb) = 
+   printf "nn.Embedding(%s, %s)" (show vocab) (show emb)
+
 declare _ (Activation name) = printf "nn.%s()" name
 declare _ (Linear inF outF) = 
    printf "nn.Linear(%s, %s)" (show inF) (show outF)
@@ -314,26 +317,30 @@ layerType (CELoss _)              = "CrossEntropyLoss"
 layerType (Input _)               = "Input"
 layerType (Broken _)              = "Broken"
 layerType (Sequential _)          = "Sequential"
+layerType (Embedding _ _)         = "Embedding"
 
 
 {- Groups up the layers into Sequential blocks -}
 groupBlocks :: Model -> Model
 groupBlocks = 
    let
-      isReg layer = not (isFunctional layer) && not (isLoss layer)
+
+      isReg layer = not (isFunctional layer) && not (isLoss layer) && not (isRNN layer)
       bothFunctional l k = (isReg l) == (isReg k)
    in
+      --group up layers into functional and not functional chunks
+      --make non-functional chunks into a sequential layers
       concatMap makeSequential . groupBy bothFunctional
 
 
 {- Makes a seqential layer, assume all the layers in the model block
 are functional or not -}
 makeSequential :: Model -> Model
-makeSequential []           = []
-makeSequential [single]     = [single]
+makeSequential []                       = []
+makeSequential [single]                 = [single]
 makeSequential (first:rest)
-   | isFunctional first     = (first:rest)
-   | otherwise              = [Sequential (first:rest)]
+   | isFunctional first || isRNN first  = (first:rest)
+   | otherwise                          = [Sequential (first:rest)]
 
 {- Determines if the layer is functional or not -}
 isFunctional :: Layer -> Bool
@@ -345,6 +352,11 @@ isFunctional (Reshape _) = True
 isFunctional (Input _)   = True
 isFunctional (Broken _)  = True
 isFunctional _           = False
+
+{- Determines if the layer is an RNN -}
+isRNN (RNN _ _ _ _)       = True
+isRNN (RNNLast _ _ _ _ _) = True
+isRNN _                   = False
 
 {- Determines if the layer is a loss function or not -}
 callable :: Layer -> Bool
@@ -368,6 +380,7 @@ layerDims (Conv2d inDim outDim _ _ _)           = [inDim, outDim]
 layerDims (Reshape dims)                        = dims
 layerDims (CELoss dims)                         = [dims]
 layerDims (Input dims)                          = dims
+layerDims (Embedding vocab dims)                = [vocab, dims]
 layerDims _                                     = []
 
 lower :: String -> String

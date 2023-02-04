@@ -29,6 +29,9 @@ module Metatorch
    rnn, lstm, gru, rnnBi, lstmBi, gruBi, rnnLast, lstmLast, gruLast, rnnBiLast,
    lstmBiLast, gruBiLast,
 
+   --from Metatorch.Layer.Embedding
+   embedding,
+
    --from Metatorch.Tensor
    Tensor(..),
 
@@ -40,10 +43,13 @@ where
 import System.Environment (getArgs)
 
 import Metatorch.Generate (generate)
-import Metatorch.Layer (check, Flow, input, relu, linear, crossEnt, permute, reshape, mean, squeeze)
-import Metatorch.Layer.CNN (conv1d, maxPool1d, avgPool1d, conv2d, maxPool2d, avgPool2d)
+import Metatorch.Layer (check, Flow, input, relu, linear, crossEnt, permute, 
+   reshape, mean, squeeze)
+import Metatorch.Layer.CNN (conv1d, maxPool1d, avgPool1d, conv2d, maxPool2d, 
+   avgPool2d)
 import Metatorch.Layer.RNN (rnn, lstm, gru, rnnBi, lstmBi, gruBi, rnnLast, 
    lstmLast, gruLast, rnnBiLast, lstmBiLast, gruBiLast)
+import Metatorch.Layer.Embedding (embedding)
 
 import Metatorch.Tensor (Tensor(..))
 import Metatorch.Dim (Dim(..), lit, var, multiply, sub, add)

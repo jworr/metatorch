@@ -63,6 +63,9 @@ data Layer = Linear Dim Dim
            --name, window, stride, pad
            | Pool2d String Int Int Int
 
+           --vocab size, embeding dim
+           | Embedding Dim Dim
+
            | Average Int
            | Max Int
            | Permute [Int] 
@@ -77,7 +80,7 @@ data Layer = Linear Dim Dim
 
 instance Show Layer where
 
-   show (Linear i d)         = printf "Linear %s" (fmtTrans i d)
+   show (Linear i d)           = printf "Linear %s" (fmtTrans i d)
    show (RNN name i d True)    = printf "bi-%s %s" name (fmtTrans i d)
    show (RNN name i d False)   = printf "%s %s" name (fmtTrans i d)
    
@@ -86,8 +89,10 @@ instance Show Layer where
    show (RNNLast name i d False True)  = printf "Last %s %s (batch first)" name (fmtTrans i d)
    show (RNNLast name i d True True)   = printf "Last-bi-%s %s (batch first)" name (fmtTrans i d)
 
-   show (Conv1d i d w s p)    = printf "Conv1D %s, window %d, stride %d, pad %d" (fmtTrans i d) w s p
-   show (Conv2d i d w s p)    = printf "Conv2D %s, window %d, stride %d, pad %d" (fmtTrans i d) w s p
+   show (Conv1d i d w s p)  = printf "Conv1D %s, window %d, stride %d, pad %d" (fmtTrans i d) w s p
+   show (Conv2d i d w s p)  = printf "Conv2D %s, window %d, stride %d, pad %d" (fmtTrans i d) w s p
+
+   show (Embedding v d)     = printf "Embeding vocab %s, embedding size %s" (show v) (show d)
 
    show (Activation name)   = name
    show (CELoss d)          = printf "Cross Entropy %s" (show d)

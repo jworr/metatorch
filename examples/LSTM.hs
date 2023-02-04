@@ -24,12 +24,15 @@ _2h = lit 2 `multiply` h
 n = var "n"
 
 _2  = lit 2
+v = var "v"
 
-
---sequence summarization, bi-directional LSTM, last vectors used for prediction
+--document summarization, 
+--embeddings layer followed by
+--bi-directional LSTM, last vectors used for prediction
 --one prediction per sequence, 2 classes
 summarize :: Flow
-summarize = input [n, l, k]
+summarize = input [n, l]
+          >>= embedding v k
           >>= lstmBiLast True k h
           >>= reshape [n, _2h]
           >>= linear _2h _2
