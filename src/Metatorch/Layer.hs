@@ -28,6 +28,7 @@ module Metatorch.Layer (
    tanhAct,
    permute,
    squeeze,
+   unsqueeze,
    reshape,
    mean,
    maximize
@@ -70,6 +71,7 @@ data Layer = Linear Dim Dim
            | Max Int
            | Permute [Int] 
            | Squeeze Int
+           | UnSqueeze Int
            | Reshape [Dim]
            | Activation String
            | CELoss Dim
@@ -99,6 +101,7 @@ instance Show Layer where
    show (Broken msg)        = printf "Error: %s" msg
    show (Permute ord)       = printf "Permute: %s" (intercalate "," $ map show ord)
    show (Squeeze d)         = printf "Squeeze: %d" d
+   show (UnSqueeze d)       = printf "UnSqueeze: %d" d
    show (Reshape ds)        = printf "Reshape: %s" (fmtDim ds)
    show (Pool1d name d s p) = printf "%s-pooling-1d %d %d %d" name d s p
    show (Pool2d name d s p) = printf "%s-pooling-2d %d %d %d" name d s p
@@ -148,7 +151,7 @@ crossEntChk numClasses target tensor
          tarDim     = length targetDims
          out        = Right target
          sameFirst  = head inputDims == head targetDims
-         sameEnd    = (tail $ tail inputDims) == tail targetDims
+         sameEnd    = (tail inputDims) == tail targetDims
          isNc d     = numClasses == head d
          msg        = printf crossEntError
 
@@ -210,6 +213,19 @@ squeezeChk sDim tensor
          isOne = (dims !! sDim) == lit 1
          msg = printf "Squeeze: cannot remove dimension %d from %s" sDim (fmtDim dims)
 
+{- Unsqueezes (adds/creates) a dimension to the tensor -}
+unsqueeze :: Int -> ETensor -> Flow
+unsqueeze sDim tensor = record (UnSqueeze sDim) $ tensor >>= (unsqueezeChk sDim)
+
+{- Applies and checks that the unsqueeze operation can be applied to the tensor -}
+unsqueezeChk :: Int -> Tensor -> ETensor
+unsqueezeChk sDim tensor
+   | 0 <= sDim && sDim <= length dims  = Right $ addDim sDim tensor
+   | otherwise                         = Left msg
+
+   where dims = dim tensor
+         msg  = printf "Unsqueeze: cannot add a dimension %d to %s" sDim (fmtDim dims)
+
 {- Find the maximum of a dimension -}
 maximize :: Int -> ETensor -> Flow
 maximize maxDim tensor = record (Max maxDim) $ tensor >>= (maxChk maxDim)
@@ -245,6 +261,18 @@ removeDim sDim tensor =
          
       --the dimension to drop will be the first of "post"
       newDims     = pre ++ (tail post)
+   in
+      fromDim newDims
+
+{- Add a dimension to the tensor -}
+addDim :: Int -> Tensor -> Tensor
+addDim aDim tensor =
+   let
+      --split at the index given
+      (pre, post) = splitAt aDim (dim tensor)
+
+      --add the dimension
+      newDims = pre ++ [lit 1] ++ post
    in
       fromDim newDims
 
