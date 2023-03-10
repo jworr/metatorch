@@ -256,7 +256,7 @@ generateTraining prefix =
                 tab 1 "",
                 tab 1 "# for a fixed number of epochs, train the model",
                 tab 1 "while epoch < num_epochs:",
-                tab 2 "print(\"Epoch %d |\" % epoch, end=\"\")",
+                tab 2 "print(\"Epoch %3d |\" % epoch, end=\"\")",
                 tab 2 "start_time = time()",
                 tab 2 "total_loss = 0.0",
                 tab 2 "",
