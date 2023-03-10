@@ -21,7 +21,7 @@ module Metatorch
 
    --from Metatorch.Layer
    check, Flow, input, relu, linear, crossEnt, permute, reshape, mean, 
-   squeeze, unsqueeze,
+   squeeze, unsqueeze, maximize,
 
    --from Metatorch.Layer.CNN
    conv1d, maxPool1d, avgPool1d, conv2d, maxPool2d, avgPool2d,
@@ -45,7 +45,7 @@ import System.Environment (getArgs)
 
 import Metatorch.Generate (generate)
 import Metatorch.Layer (check, Flow, input, relu, linear, crossEnt, permute, 
-   reshape, mean, squeeze, unsqueeze)
+   reshape, mean, squeeze, unsqueeze, maximize)
 import Metatorch.Layer.CNN (conv1d, maxPool1d, avgPool1d, conv2d, maxPool2d, 
    avgPool2d)
 import Metatorch.Layer.RNN (rnn, lstm, gru, rnnBi, lstmBi, gruBi, rnnLast, 
