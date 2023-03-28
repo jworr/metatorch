@@ -22,6 +22,7 @@ module Metatorch.Layer (
    check,
    record,
    crossEnt,
+   mseLoss,
    linear,
    relu,
    sigmoid,
@@ -74,7 +75,10 @@ data Layer = Linear Dim Dim
            | UnSqueeze Int
            | Reshape [Dim]
            | Activation String
-           | CELoss Dim
+
+           --number of classes
+           | CELoss Dim  
+           | MSELoss 
            | Input [Dim]
            | Broken String
            | Sequential [Layer]
@@ -98,6 +102,7 @@ instance Show Layer where
 
    show (Activation name)   = name
    show (CELoss d)          = printf "Cross Entropy %s" (show d)
+   show MSELoss             = printf "MSE Loss"
    show (Broken msg)        = printf "Error: %s" msg
    show (Permute ord)       = printf "Permute: %s" (intercalate "," $ map show ord)
    show (Squeeze d)         = printf "Squeeze: %d" d
@@ -119,8 +124,6 @@ type Flow = Writer [(Layer, [Dim])] ETensor
 
 
 {- Applies the Loss layer in the flow of the network -}
---consider switching back to ETensor from Tensor that is:
---crossEnt :: Dim -> ETensor -> ETensor -> Flow
 crossEnt :: Dim -> Tensor -> ETensor -> Flow
 crossEnt numClasses target tensor = 
    let
@@ -161,6 +164,26 @@ crossEntError = unlines ["Cross Ent: input %s does not match target %s with %s c
    "input (C) target ()",
    "input (N, C) target (N)",
    "input (N, C, d1, d2,...) target (N, d1, d2,...)"]
+
+
+{- Applies the MSE loss layer to the flow of the network -}
+mseLoss :: Tensor -> ETensor -> Flow
+mseLoss target inputTensor = record MSELoss $ inputTensor >>= mseCheck target
+
+
+{- Check that input to MSE matches the expected dimension -}
+mseCheck :: Tensor -> Tensor -> ETensor
+mseCheck target input 
+   
+   -- check that the input and target dimensions are the same
+   | inDim == targetDim = Right target
+
+   -- create an error message
+   | otherwise = Left $ printf msg (fmtDim inDim) (fmtDim targetDim)
+
+   where inDim     = dim input
+         targetDim = dim target
+         msg       = "MSE: input %s does not match the target %s"
 
 
 {- Applies the linear layer in the flow of the network -}

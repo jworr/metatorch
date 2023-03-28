@@ -210,6 +210,8 @@ declare _ (Linear inF outF) =
 
 declare _ (CELoss _) = "nn.CrossEntropyLoss()"
 
+declare _ MSELoss    = "nn.MSELoss()"
+
 declare prefix (Sequential layers) = 
    let
       names = map (declare prefix) layers
@@ -347,6 +349,7 @@ layerType (UnSqueeze _)           = "unsqueeze"
 layerType (Reshape _)             = "reshape"
 layerType (Activation name)       = name
 layerType (CELoss _)              = "CrossEntropyLoss"
+layerType MSELoss                 = "MSELoss"
 layerType (Input _)               = "Input"
 layerType (Broken _)              = "Broken"
 layerType (Sequential _)          = "Sequential"
@@ -397,11 +400,13 @@ callable :: Layer -> Bool
 callable (Input _)  = False
 callable (Broken _) = False
 callable (CELoss _) = False
+callable MSELoss    = False
 callable _          = True
 
 {- Determines if the layer is a loss function -}
 isLoss :: Layer -> Bool
 isLoss (CELoss _) = True
+isLoss MSELoss    = True
 isLoss _          = False
 
 {- Determines if the layer is an embedding layer -}
