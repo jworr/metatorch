@@ -16,8 +16,7 @@ More Pytorch layers and operations will be implemented in the near future.
 
 Look in `examples` directory for example models. 
 Build the project with the command `cabal build` and run a shell in the cabal sandbox with the command `cabal exec bash` (or whatever shell you want).
-After starting the sandbox, compile an example with the following command: `ghc --make LSTM -outputdir=lib`. 
-Run it with the command `./LSTM`
+After starting the sandbox, compile and run an example with the following command: `runghc LSTM.hs`. 
 
 Currently, Metatorch has been tested versus Torch version 1.11
 
